@@ -275,7 +275,21 @@ let swReady = false;
 function connectionState() {$('#connection').innerHTML = `<i></i> ${navigator.onLine ? swReady ? 'PRÊT HORS LIGNE' : 'EN LIGNE' : 'HORS CONNEXION'}`;}
 window.addEventListener('online', connectionState);window.addEventListener('offline', connectionState);
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-  void navigator.serviceWorker.register('./sw.js').then(async () => {await navigator.serviceWorker.ready;swReady = true;connectionState();}).catch(() => {notify('Le mode hors connexion n’a pas pu être préparé. Réessaie avec une connexion active.');});
+  const workerURL = new URL('./sw.js', location.href);
+  workerURL.searchParams.set('v', document.querySelector<HTMLMetaElement>('meta[name="tangent-client"]')?.content ?? '2');
+  void navigator.serviceWorker.register(workerURL.href).then(async registration => {
+    // serviceWorker.ready can refer to a previous installation while this release installs.
+    const worker = registration.installing ?? registration.waiting ?? registration.active;
+    if (!worker || worker.scriptURL !== workerURL.href) throw new Error('Current offline worker unavailable');
+    if (worker.state !== 'activated') await new Promise<void>((resolve, reject) => {
+      const changed = () => {
+        if (worker.state === 'activated') {worker.removeEventListener('statechange', changed);resolve();}
+        else if (worker.state === 'redundant') {worker.removeEventListener('statechange', changed);reject(new Error('Offline installation failed'));}
+      };
+      worker.addEventListener('statechange', changed);changed();
+    });
+    swReady = true;connectionState();
+  }).catch(() => {notify('Le mode hors connexion n’a pas pu être préparé. Réessaie avec une connexion active.');});
 }
 document.body.classList.toggle('reduced-motion', save.reducedMotion);updateSound();startLevel(save.lastLevel);connectionState();
 if (interrupted) notify('L’essai interrompu a coûté une vie. Ta progression et tes records sont conservés.');

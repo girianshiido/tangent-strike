@@ -9,7 +9,7 @@ clientHash.update(await readFile('src/styles.css'));
 const clientVersion = clientHash.digest('hex').slice(0, 12);
 await cp('.build', `docs/assets/${clientVersion}`, {recursive:true});
 await cp('src/styles.css', `docs/assets/${clientVersion}/styles.css`);
-const html = (await readFile('index.html', 'utf8')).replaceAll('./assets/', `./assets/${clientVersion}/`);
+const html = (await readFile('index.html', 'utf8')).replaceAll('./assets/', `./assets/${clientVersion}/`).replace('</head>', `  <meta name="tangent-client" content="${clientVersion}">\n</head>`);
 await writeFile('docs/index.html', html);
 await cp('public', 'docs', {recursive:true});
 await writeFile('docs/.nojekyll', '');
