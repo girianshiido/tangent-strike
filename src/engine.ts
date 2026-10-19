@@ -185,9 +185,12 @@ export function projection(level: Level, width: number, height: number) {
 export function rayCircle(origin: Point, unit: Point, center: Point, radius: number): number | null {
   const dx = center.x - origin.x, dy = center.y - origin.y;
   const along = dx * unit.x + dy * unit.y;
-  const perpendicular2 = dx * dx + dy * dy - along * along;
-  if (perpendicular2 > radius * radius + 1e-10) return null;
-  const half = Math.sqrt(Math.max(0, radius * radius - perpendicular2));
+  // Cross product with the unit direction gives the center-to-line distance
+  // without subtracting two potentially large, nearly equal squares.
+  const distance = Math.abs(dx * unit.y - dy * unit.x);
+  const tolerance = 32 * Number.EPSILON * Math.max(1, Math.abs(dx), Math.abs(dy), radius);
+  if (distance > radius + tolerance) return null;
+  const half = Math.sqrt(Math.max(0, (radius - distance) * (radius + distance)));
   if (along + half < 0) return null;
   return Math.max(0, along - half);
 }
@@ -213,8 +216,6 @@ export function fire(level: Level, a: number, direction: Direction, time: number
     }
     beams.push({end: {x: origin.x + unit.x * stop, y: origin.y + unit.y * stop}, blocked: obstacleId >= 0});
   }
-  // Horizontal-world task: a very small slope tolerance accommodates touch input.
-  if (level.world === 0 && Math.abs(slope) > .065) impacts.clear();
   return {origin, slope, hits: [...impacts.keys()], obstacleHits: [...obstacleHits], impacts: [...impacts].map(([id, precision]) => ({id, precision})), beams};
 }
 export const ruleLabel = (rule: Rule) => ({both: '↔ Double rayon', left: '← Vers la gauche', right: 'Vers la droite →', choose: '← Sens au choix →'})[rule];

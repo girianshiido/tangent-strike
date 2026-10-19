@@ -1,4 +1,5 @@
 import { BOUNDS, derivative, format, movingObstacle, movingTarget, projection, resistance, value } from './engine.js';
+export const shotDuration = (reducedMotion) => reducedMotion ? 300 : 1400;
 export class Board {
     canvas;
     getState;
@@ -223,7 +224,8 @@ export class Board {
         }
         if (state.shot) {
             const age = now - state.shot.at, result = state.shot.result, p = this.screen(result.origin);
-            const alpha = state.reducedMotion ? .7 : Math.max(.15, 1 - Math.max(0, age - 500) / 900);
+            const fadeStart = state.reducedMotion ? 180 : 500;
+            const alpha = (state.reducedMotion ? .7 : 1) * Math.max(0, 1 - Math.max(0, age - fadeStart) / (shotDuration(state.reducedMotion) - fadeStart));
             c.globalAlpha = alpha;
             if (age > 110 || state.reducedMotion) {
                 for (const b of result.beams) {

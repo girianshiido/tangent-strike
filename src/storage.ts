@@ -70,10 +70,10 @@ export function recoverInterruptedAttempt(save: Save): boolean {
   if (save.activeAttempt === null) return false;
   const id = save.activeAttempt;failAttempt(save, id);return true;
 }
-export function award(save: Save, id: number, shotsUsed: number, assisted: boolean, double: boolean, precision = 1, par = 1, collisions = 0): number {
+export function award(save: Save, id: number, shotsUsed: number, assisted: boolean, double: boolean, precision = 1, par = 1, collisions = 0, objectiveMet = true): number {
   save.activeAttempt = null;
   if (assisted) return 0;
-  const stars = shotsUsed <= par && precision >= .8 - 1e-9 && collisions === 0 ? 3 : shotsUsed <= par + 1 && precision >= .45 - 1e-9 ? 2 : 1;
+  const stars = !objectiveMet ? 1 : shotsUsed <= par && precision >= .8 - 1e-9 && collisions === 0 ? 3 : shotsUsed <= par + 1 && precision >= .45 - 1e-9 ? 2 : 1;
   save.stars[id] = Math.max(save.stars[id], stars);
   save.wins++;save.streak++;save.bestStreak = Math.max(save.bestStreak, save.streak);
   if (stars === 3) save.perfect++;

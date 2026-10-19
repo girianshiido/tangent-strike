@@ -94,11 +94,11 @@ export function recoverInterruptedAttempt(save) {
     failAttempt(save, id);
     return true;
 }
-export function award(save, id, shotsUsed, assisted, double, precision = 1, par = 1, collisions = 0) {
+export function award(save, id, shotsUsed, assisted, double, precision = 1, par = 1, collisions = 0, objectiveMet = true) {
     save.activeAttempt = null;
     if (assisted)
         return 0;
-    const stars = shotsUsed <= par && precision >= .8 - 1e-9 && collisions === 0 ? 3 : shotsUsed <= par + 1 && precision >= .45 - 1e-9 ? 2 : 1;
+    const stars = !objectiveMet ? 1 : shotsUsed <= par && precision >= .8 - 1e-9 && collisions === 0 ? 3 : shotsUsed <= par + 1 && precision >= .45 - 1e-9 ? 2 : 1;
     save.stars[id] = Math.max(save.stars[id], stars);
     save.wins++;
     save.streak++;

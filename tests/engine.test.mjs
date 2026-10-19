@@ -76,6 +76,10 @@ test('circle intersection handles backwards, inside and tangential contacts',()=
   assert.equal(rayCircle({x:0,y:0},{x:1,y:0},{x:-2,y:0},.2),null);
   assert.equal(rayCircle({x:0,y:0},{x:1,y:0},{x:0,y:0},1),0);
   assert.equal(rayCircle({x:0,y:0},{x:1,y:0},{x:2,y:1},1),2);
+  assert.notEqual(rayCircle({x:0,y:0},{x:1,y:0},{x:2,y:1-1e-8},1),null);
+  assert.equal(rayCircle({x:0,y:0},{x:1,y:0},{x:2,y:1+1e-8},1),null);
+  assert.equal(rayCircle({x:0,y:0},{x:1,y:0},{x:1e8,y:1+1e-5},1),null);
+  assert.equal(rayCircle({x:0,y:0},{x:1,y:0},{x:1e8,y:1},1),1e8);
 });
 test('campaign requires all twelve levels in order and never advances from assisted wins',()=>{
   const s=freshSave();assert.equal(levelUnlocked(s,1),false);assert.equal(worldUnlocked(s,1),false);
@@ -106,6 +110,17 @@ test('precision and stars account for required impacts and collisions',()=>{
   const curve={kind:'polynomial',coefficients:[0],scale:1,h:0,k:0,label:'0'};
   for(const y of [0,.1,.3,.499]){const l={...makeLevel(12),curve,targets:[{id:0,x:2,y,radius:.5,motion:0,phase:0}],obstacles:[]};const r=fire(l,0,'right',0);assert.ok(Math.abs(r.impacts[0].precision-(1-y/.5))<1e-9);}
   const s=freshSave();assert.equal(award(s,0,1,false,false,.2),1);assert.equal(award(s,0,1,false,false,.6),2);assert.equal(award(s,0,3,false,false,.9,3),3);assert.equal(award(s,0,3,false,false,.9,3,1),2);assert.equal(s.stars[0],3);
+});
+test('a visible hit in the first world earns a star even beyond the horizontal slope tolerance',()=>{
+  const level=makeLevel(0),result=fire(level,.2,'both',0);
+  assert.ok(result.slope>.065);assert.deepEqual(result.hits,[0]);
+  assert.ok(result.impacts[0].precision>0&&result.impacts[0].precision<.45);
+  const s=freshSave();
+  assert.equal(award(s,0,1,false,false,result.impacts[0].precision,1,0,false),1);
+  assert.equal(s.stars[0],1);assert.equal(s.runs[0].next,1);
+  assert.equal(award(s,0,1,false,false,1,1,0,false),1);
+  assert.equal(award(s,0,1,false,false,1,1,0,true),3);
+  assert.deepEqual(fire(level,1,'both',0).hits,[]);
 });
 test('adaptive camera contains all target stages and complete obstacle trajectories',()=>{
   for(let id=0;id<TOTAL_LEVELS;id++){

@@ -1,5 +1,6 @@
 import { BOUNDS, derivative, format, movingObstacle, movingTarget, projection, resistance, value, type Level, type Point, type ShotResult } from './engine.js';
 export interface BoardState { level: Level; destroyed: Set<number>; damage: Map<number, number>; time: number; aim: number | null; shot: {result: ShotResult; at: number} | null; hint: number | null; reducedMotion: boolean }
+export const shotDuration = (reducedMotion: boolean) => reducedMotion ? 300 : 1400;
 export class Board {
   private ctx: CanvasRenderingContext2D;
   private background = document.createElement('canvas');
@@ -103,7 +104,8 @@ export class Board {
     }
     if (state.shot) {
       const age = now - state.shot.at, result = state.shot.result, p = this.screen(result.origin);
-      const alpha = state.reducedMotion ? .7 : Math.max(.15, 1 - Math.max(0, age - 500) / 900);
+      const fadeStart = state.reducedMotion ? 180 : 500;
+      const alpha = (state.reducedMotion ? .7 : 1) * Math.max(0, 1 - Math.max(0, age - fadeStart) / (shotDuration(state.reducedMotion) - fadeStart));
       c.globalAlpha = alpha;
       if (age > 110 || state.reducedMotion) {
         for (const b of result.beams) {
