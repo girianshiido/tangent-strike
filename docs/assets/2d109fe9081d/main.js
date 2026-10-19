@@ -1,19 +1,22 @@
 import { Board } from './board.js';
-import { derivative, fire, format, makeLevel, ruleLabel, TOTAL_LEVELS, WORLDS } from './engine.js';
-import { achievements, award, freshSave, readSave, worldUnlocked, writeSave } from './storage.js';
+import { derivative, fire, format, hasMotion, makeLevel, resistance, ruleLabel, TOTAL_LEVELS, WORLDS } from './engine.js';
+import { achievements, award, failAttempt, freshSave, levelUnlocked, loseLife, MAX_LIVES, readSave, recordImpacts, recoverInterruptedAttempt, restartWorld, resumeLevel, worldUnlocked, writeSave } from './storage.js';
 import { setupInstallation } from './install.js';
 const $ = (selector) => document.querySelector(selector);
 let save = readSave();
+const interrupted = recoverInterruptedAttempt(save);
 let level = makeLevel(save.lastLevel);
-let practice = false, variant = 0, destroyed = new Set(), used = 0, busy = false, finished = false, assisted = false, hint = false;
+let practice = false, variant = 0, destroyed = new Set(), used = 0, busy = false, finished = false, assisted = false;
+let hint = null, damage = new Map();
 let direction = 'both', aim = null, shot = null;
 let impactPrecision = new Map();
+let collisions = 0;
 let elapsed = 0, targetTime = 0, timerStarted = false, token = 0, raf = 0, previous = performance.now(), lastPaint = 0;
 let soundContext = null, storageWarning = false, toastTimer = 0;
 const dialog = $('#modal');
 const canvas = $('#board');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
-const state = () => ({ level, destroyed, time: targetTime, aim, shot, hint, reducedMotion: save.reducedMotion || motionPreference.matches });
+const state = () => ({ level, destroyed, damage, time: targetTime, aim, shot, hint, reducedMotion: save.reducedMotion || motionPreference.matches });
 const board = new Board(canvas, state, () => requestDraw());
 function persist() {
     if (!writeSave(save) && !storageWarning) {
@@ -65,21 +68,25 @@ function updateSound() { const b = $('#sound'); b.textContent = save.sound ? '�
 $('#sound').addEventListener('click', () => { save.sound = !save.sound; persist(); updateSound(); });
 function updateCampaign() {
     const count = save.stars.filter(Boolean).length;
-    $('#campaign-count').textContent = `${String(count).padStart(2, '0')} / 60`;
+    $('#campaign-count').textContent = `${String(count).padStart(2, '0')} / ${TOTAL_LEVELS}`;
     $('#campaign-progress').style.width = `${count / TOTAL_LEVELS * 100}%`;
     $('#worlds').innerHTML = WORLDS.map((w, i) => {
-        const open = practice || worldUnlocked(save, i), won = save.stars.slice(i * 12, i * 12 + 12).filter(Boolean).length;
+        const open = practice || worldUnlocked(save, i), won = save.runs[i].next;
         return `<button class="world-card ${i === level.world ? 'active' : ''} ${open ? '' : 'locked'}" data-world="${i}" aria-label="Monde ${i + 1} : ${w.name}${open ? '' : ', verrouillé'}" aria-current="${i === level.world ? 'true' : 'false'}" style="--world:${w.color}"><span class="world-icon" aria-hidden="true">${w.icon}</span><span><small>MONDE 0${i + 1}</small><strong>${w.name}</strong></span><span class="world-status">${open ? `${won}/12` : '⌑'}</span></button>`;
     }).join('');
     $('#levels').innerHTML = Array.from({ length: 12 }, (_, i) => {
         const id = level.world * 12 + i, stars = save.stars[id];
-        return `<button class="level-chip ${id === level.id ? 'current' : ''} ${stars ? 'complete' : ''}" data-level="${id}" aria-label="Niveau ${i + 1}${stars ? `, ${stars} étoiles` : ''}" aria-current="${id === level.id ? 'step' : 'false'}">${String(i + 1).padStart(2, '0')}</button>`;
+        const open = practice || levelUnlocked(save, id);
+        return `<button class="level-chip ${id === level.id ? 'current' : ''} ${stars ? 'complete' : ''}" data-level="${id}" ${open ? '' : 'disabled'} aria-label="Niveau ${i + 1}${stars ? `, record : ${stars} étoiles` : ''}${open ? '' : ', à débloquer'}" aria-current="${id === level.id ? 'step' : 'false'}">${String(i + 1).padStart(2, '0')}</button>`;
     }).join('');
-    $('#achievement-count').textContent = `${achievements(save).filter(a => a.done).length} / 6`;
+    $('#achievement-count').textContent = `${achievements(save).filter(a => a.done).length} / 50`;
     $('#practice').classList.toggle('active', practice);
 }
 function updateControls() {
-    $('#shots').innerHTML = practice ? '<span aria-label="Tirs illimités">∞</span>' : Array.from({ length: level.shots }, (_, i) => `<i class="energy-cell ${i < used ? 'spent' : ''}" aria-hidden="true"></i>`).join('');
+    const lives = save.runs[level.world].lives;
+    $('#health').innerHTML = practice ? '<span>∞</span>' : Array.from({ length: MAX_LIVES }, (_, i) => `<span class="${i >= lives ? 'lost' : ''}">${i < lives ? '♥' : '♡'}</span>`).join('');
+    $('#health').setAttribute('aria-label', practice ? 'Laboratoire : vies illimitées' : `${lives} points de vie sur ${MAX_LIVES}`);
+    $('#shots').innerHTML = practice ? '<span aria-label="Tirs illimités">∞</span>' : level.shots > 4 ? `<span class="numeric-shots">${Math.max(0, level.shots - used)}<small> / ${level.shots}</small></span>` : Array.from({ length: level.shots }, (_, i) => `<i class="energy-cell ${i < used ? 'spent' : ''}" aria-hidden="true"></i>`).join('');
     $('#shots').setAttribute('aria-label', practice ? 'Tirs illimités' : `${level.shots - used} tirs restants`);
     $('#shots-label').textContent = practice ? 'TIRS LIBRES' : 'ÉNERGIE';
     $('#direction-control').hidden = level.rule !== 'choose';
@@ -92,6 +99,8 @@ function updateControls() {
     $('#timer').hidden = !level.seconds || practice;
     updateTimer();
     $('#mode-badge').textContent = practice ? 'LABORATOIRE' : 'CAMPAGNE';
+    const total = level.targets.reduce((sum, t) => sum + resistance(t), 0), taken = [...damage.values()].reduce((a, b) => a + b, 0);
+    $('#coordinates').textContent = `${taken}/${total} IMPACTS`;
 }
 function updateTimer() {
     const left = Math.max(0, Math.ceil(level.seconds - elapsed));
@@ -102,16 +111,31 @@ function updateTimer() {
 }
 function feedback(html, symbol = '↗') { $('#feedback').innerHTML = `<span class="feedback-symbol" aria-hidden="true">${symbol}</span><p>${html}</p>`; }
 function startLevel(id, nextVariant = 0) {
+    if (!practice && !levelUnlocked(save, id)) {
+        notify('Réussis le niveau précédent pour avancer dans ce monde.');
+        return;
+    }
+    if (save.activeAttempt !== null) {
+        const abandoned = save.activeAttempt, died = failAttempt(save, abandoned);
+        if (died && !practice)
+            id = Math.floor(abandoned / 12) * 12;
+        if (!died)
+            notify('Essai abandonné : une vie perdue.');
+        persist();
+    }
+    const v = practice ? nextVariant : save.runs[Math.floor(id / 12)].seed;
     token++;
-    level = makeLevel(id, nextVariant);
-    variant = nextVariant;
+    level = makeLevel(id, v);
+    variant = v;
     destroyed = new Set();
+    damage = new Map();
     impactPrecision = new Map();
+    collisions = 0;
     used = 0;
     busy = false;
     finished = false;
     assisted = false;
-    hint = false;
+    hint = null;
     aim = null;
     shot = null;
     elapsed = 0;
@@ -133,14 +157,17 @@ function startLevel(id, nextVariant = 0) {
     $('#direction-badge').textContent = ruleLabel(level.rule);
     $('#obstacle-legend').hidden = level.obstacles.length === 0;
     $('#first-tip').hidden = id !== 0 || save.stars[0] > 0 || practice;
+    $('#first-tip span').textContent = level.curve.scale < 0 ? 'Touche le sommet de la courbe' : 'Touche le creux de la courbe';
     $('#result').hidden = true;
     $('#result').innerHTML = '';
     $('#arena').dataset.level = String(id);
     canvas.setAttribute('aria-label', `${level.curve.label}. ${level.instruction} ${ruleLabel(level.rule)}. Au clavier : flèches pour viser, Entrée pour tirer.`);
-    feedback(level.seconds && !practice ? 'Défi de 25 secondes : le compte à rebours commence à ton premier geste.' : practice ? 'Tirs illimités. Les indices révèlent le point de tir, sans modifier tes scores.' : 'Un point sur la courbe. Une tangente. À toi de viser.');
+    feedback(level.seconds && !practice ? `Défi de ${level.seconds} secondes, dès ton premier geste. Objectif : ${level.par} tirs.` : practice ? 'Tirs et vies illimités. Les solutions ne valident pas la campagne.' : `Objectif : ${level.par} tir${level.par > 1 ? 's' : ''}. Obstacle touché ou échec : −1 vie.`);
     updateCampaign();
     updateControls();
     requestDraw();
+    if (!practice && save.runs[level.world].lives === 0)
+        finish(false, false, true);
 }
 $('#worlds').addEventListener('click', event => {
     const b = event.target.closest('[data-world]');
@@ -148,13 +175,12 @@ $('#worlds').addEventListener('click', event => {
         return;
     const world = Number(b.dataset.world);
     if (!practice && !worldUnlocked(save, world)) {
-        const count = save.stars.slice((world - 1) * 12, world * 12).filter(Boolean).length;
-        show('Un monde à découvrir.', `<p>Réussis <strong>8 niveaux</strong> du monde précédent pour ouvrir ${WORLDS[world].name}. Tu en as terminé ${count}.</p><p>Tu peux aussi explorer ce monde dans le <strong>laboratoire libre</strong>.</p><button class="primary-button" id="try-world">Explorer ce monde ↗</button>`);
+        const count = save.runs[world - 1].next;
+        show('Un monde à découvrir.', `<p>Termine les <strong>12 niveaux</strong> du monde précédent pour ouvrir ${WORLDS[world].name}. Progression actuelle : ${count}/12.</p><p>Tu peux aussi explorer ce monde dans le <strong>laboratoire libre</strong>.</p><button class="primary-button" id="try-world">Explorer ce monde ↗</button>`);
         $('#try-world').addEventListener('click', () => { practice = true; closeModal(); startLevel(world * 12); });
         return;
     }
-    const first = Array.from({ length: 12 }, (_, i) => world * 12 + i).find(id => save.stars[id] === 0) ?? world * 12;
-    startLevel(first);
+    startLevel(resumeLevel(save, world));
 });
 $('#levels').addEventListener('click', event => { const b = event.target.closest('[data-level]'); if (b)
     startLevel(Number(b.dataset.level)); });
@@ -163,41 +189,52 @@ $('#direction-control').addEventListener('click', event => { const b = event.tar
     direction = b.dataset.direction;
     updateControls();
 } });
-function finish(win, double = false) {
+function finish(win, double = false, collisionAlreadyCharged = false) {
     if (finished)
         return;
     finished = true;
     busy = false;
     let stars = 0;
     const precision = impactPrecision.size ? Math.min(...impactPrecision.values()) : 0;
-    const completedBefore = save.stars.every(s => s > 0);
+    const completedBefore = save.runs.every(r => r.cleared);
     const before = achievements(save).filter(a => a.done).length;
     if (!practice) {
         if (win)
-            stars = award(save, level.id, used, assisted, double, precision);
-        else {
-            save.streak = 0;
-        }
+            stars = award(save, level.id, used, assisted, double, precision, level.par, collisions);
+        else
+            failAttempt(save, level.id, collisionAlreadyCharged);
         persist();
     }
     const after = achievements(save).filter(a => a.done).length;
     updateCampaign();
     updateControls();
-    const allDone = !practice && !completedBefore && save.stars.every(s => s > 0);
+    const allDone = !practice && !completedBefore && save.runs.every(r => r.cleared);
+    const dead = !practice && save.runs[level.world].lives === 0;
     const grade = precision >= .8 - 1e-9 ? 'Plein centre.' : precision >= .45 - 1e-9 ? 'Tir précis.' : level.targets.length > 1 ? 'Cibles touchées.' : 'Cible touchée.';
     const centering = `Centrage : ${Math.round(precision * 100)} % · ${used} tir${used > 1 ? 's' : ''}.`;
-    $('#result').innerHTML = `<div class="result-mark" aria-hidden="true">${win ? '✦' : '↻'}</div>${win && !practice ? `<div class="stars" aria-label="${stars} étoiles">${Array.from({ length: 3 }, (_, i) => `<span class="${i < stars ? '' : 'empty'}">★</span>`).join('')}</div>` : ''}<h3>${allDone ? 'Dérivée suprême !' : win ? grade : 'Ajuste ta trajectoire.'}</h3><p>${allDone ? 'Les 60 défis sont réussis. Reviens chercher les trois étoiles ou explore le laboratoire.' : win ? `${centering} ${assisted ? 'Rejoue sans indice pour gagner davantage d’étoiles.' : practice ? 'Essaie de rapprocher le rayon du centre de chaque disque.' : after > before ? 'Un nouveau succès est débloqué !' : precision < .8 ? 'Vise le centre du disque pour améliorer tes étoiles.' : 'Un rayon au plus près du centre de chaque cible.'}` : elapsed >= level.seconds && level.seconds > 0 ? 'Le temps est écoulé. Le laboratoire permet de réfléchir sans chronomètre.' : 'Observe la pente du dernier laser, puis déplace ton point de tir.'}</p><div class="result-buttons"><button class="primary-button" id="result-next">${win ? practice ? 'Nouvelle variation ↗' : level.id === TOTAL_LEVELS - 1 ? 'Retour au parcours ↗' : 'Niveau suivant →' : 'Réessayer ↻'}</button><button class="secondary-button" id="result-replay">${win ? 'Rejouer' : 'Voir une solution'}</button></div>${win && !practice ? '<p class="mini">★ Touché · ★★ Précis en ≤ 2 tirs · ★★★ Plein centre au 1er tir · Indice : ★</p>' : ''}`;
+    $('#result').innerHTML = `<div class="result-mark" aria-hidden="true">${dead ? '♡' : win ? '✦' : '↻'}</div>${win && !practice ? `<div class="stars" aria-label="${stars} étoile${stars > 1 ? 's' : ''}">${Array.from({ length: 3 }, (_, i) => `<span class="${i < stars ? '' : 'empty'}">★</span>`).join('')}</div>` : ''}<h3>${dead ? 'Bouclier épuisé.' : allDone ? 'Dérivée suprême !' : win ? collisions ? 'Objectif atteint.' : grade : 'Ajuste ta trajectoire.'}</h3><p>${dead ? 'Retour au premier niveau du monde avec trois vies et de nouvelles variations. Tes records d’étoiles sont conservés.' : allDone ? `Les ${TOTAL_LEVELS} défis sont réussis. Reviens chercher les trois étoiles ou explore le laboratoire.` : win ? `${centering} ${collisions ? 'Collision : une vie perdue, trois étoiles impossibles.' : practice ? 'Le laboratoire ne valide pas la campagne.' : after > before ? 'Un nouveau succès est débloqué !' : save.runs[level.world].next === 12 ? 'Monde terminé ! Le suivant est ouvert.' : precision < .8 ? 'Vise le centre pour améliorer tes étoiles.' : 'Un rayon au plus près du centre de chaque cible.'}` : `${elapsed >= level.seconds && level.seconds > 0 ? 'Le temps est écoulé.' : 'Les tirs sont épuisés.'} ${collisionAlreadyCharged ? 'La collision a coûté une vie.' : 'Une vie perdue.'} Il reste ${save.runs[level.world].lives} vie${save.runs[level.world].lives > 1 ? 's' : ''}.`}</p><div class="result-buttons"><button class="primary-button" id="result-next">${dead ? 'Recommencer le monde ↻' : win ? practice ? 'Nouvelle variation ↗' : allDone ? 'Rejouer le monde ↻' : save.runs[level.world].next === 12 && level.world < WORLDS.length - 1 ? 'Monde suivant →' : 'Continuer →' : 'Réessayer ↻'}</button><button class="secondary-button" id="result-replay">${dead ? 'Laboratoire libre' : win ? 'Rejouer' : 'Comprendre la règle'}</button></div>${win && !practice ? `<p class="mini">Objectif : ≤ ${level.par} tirs · ★★★ : plein centre, sans collision</p>` : ''}`;
     $('#result').hidden = false;
     $('#result-next').addEventListener('click', () => {
-        if (!win)
+        if (dead || allDone) {
+            restartWorld(save, level.world);
+            persist();
+            startLevel(level.world * 12);
+        }
+        else if (!win)
             startLevel(level.id, variant);
         else if (practice)
             startLevel(level.id, variant + 1);
-        else
-            startLevel(level.id === TOTAL_LEVELS - 1 ? (save.stars.findIndex(s => !s) >= 0 ? save.stars.findIndex(s => !s) : 0) : level.id + 1);
+        else {
+            const world = save.runs[level.world].next === 12 ? Math.min(WORLDS.length - 1, level.world + 1) : level.world;
+            startLevel(resumeLevel(save, world));
+        }
     });
-    $('#result-replay').addEventListener('click', () => { startLevel(level.id, variant); if (!win)
-        revealHint(); });
+    $('#result-replay').addEventListener('click', () => { if (dead)
+        openPractice();
+    else if (!win)
+        openLesson();
+    else
+        startLevel(level.id, variant); });
     if (win)
         playTone('win');
     requestDraw();
@@ -210,11 +247,20 @@ function shoot(a) {
     timerStarted = true;
     aim = null;
     used++;
+    beginAttempt();
     if (!practice) {
         save.attempts++;
         persist();
     }
-    const result = fire(level, a, direction, targetTime, destroyed), thisToken = token;
+    const result = fire(level, a, direction, targetTime, damage), thisToken = token;
+    const collision = result.obstacleHits.length > 0;
+    if (collision) {
+        collisions++;
+        if (!practice) {
+            loseLife(save, level.world);
+            persist();
+        }
+    }
     shot = { result, at: performance.now() };
     playTone('shot');
     updateControls();
@@ -222,33 +268,49 @@ function shoot(a) {
     const m = result.slope, b = result.origin.y - m * a;
     const equation = `y ≈ ${format(m)}x ${b < 0 ? '−' : '+'} ${format(Math.abs(b))}`;
     const explanation = `<strong>a ≈ ${format(a)} · f′(a) ≈ ${format(m)}</strong> &nbsp;|&nbsp; ${equation}`;
-    feedback(explanation, 'ϟ');
+    feedback(collision ? `${explanation}<br>Obstacle touché : ${practice ? 'aucune vie perdue en laboratoire' : '−1 vie'}.` : explanation, collision ? '♡' : 'ϟ');
     window.setTimeout(() => {
         if (thisToken !== token)
             return;
+        const killed = [];
         if (level.world === 2 && result.hits.length !== level.targets.length) {
             destroyed.clear();
+            damage.clear();
             impactPrecision.clear();
         }
         else {
-            result.hits.forEach(id => destroyed.add(id));
-            result.impacts.forEach(i => impactPrecision.set(i.id, i.precision));
+            result.hits.forEach(id => { const t = level.targets.find(t => t.id === id); damage.set(id, Math.min(resistance(t), (damage.get(id) ?? 0) + 1)); if (damage.get(id) === resistance(t)) {
+                destroyed.add(id);
+                killed.push(id);
+            } });
+            result.impacts.forEach(i => impactPrecision.set(i.id, Math.min(impactPrecision.get(i.id) ?? 1, i.precision)));
         }
+        if (!practice) {
+            recordImpacts(save, level, result, direction, killed);
+            persist();
+        }
+        hint = null;
         busy = false;
         if (result.hits.length)
             playTone('hit');
         const blocked = result.beams.some(b => b.blocked);
-        if (destroyed.size === level.targets.length)
+        if (!practice && save.runs[level.world].lives === 0)
+            finish(false, false, true);
+        else if (destroyed.size === level.targets.length)
             finish(true, result.hits.length >= 2);
         else if (!practice && used >= level.shots)
-            finish(false);
+            finish(false, false, collision);
         else {
-            feedback(`${explanation}<br>${level.world === 0 && Math.abs(m) > .065 ? 'Dans ce monde, cherche une pente nulle : f′(a) = 0.' : level.world === 2 ? 'Les deux cibles doivent être touchées par le même tir.' : result.hits.length ? 'Une cible détruite. Vise la suivante.' : blocked ? 'Un obstacle a arrêté le rayon. Change de point ou de sens.' : Math.abs(m) < .035 ? 'Tangente presque horizontale : ajuste ton point.' : 'Faut-il une pente plus grande ou plus petite ?'}`, result.hits.length ? '✦' : '↗');
+            feedback(`${explanation}<br>${blocked ? `Obstacle touché : ${practice ? 'pas de malus en laboratoire' : '−1 vie'}. Attends ou change de trajectoire.` : level.world === 0 && Math.abs(m) > .065 ? 'Dans ce monde, cherche une pente nulle : f′(a) = 0.' : level.world === 2 ? 'Les deux cibles doivent être touchées par le même tir.' : result.hits.some(id => level.targets.find(t => t.id === id)?.boss && !destroyed.has(id)) ? 'Gardien touché : il change de position. Trouve sa nouvelle tangente !' : result.hits.length ? `${destroyed.size}/${level.targets.length} cibles détruites. Continue les impacts.` : Math.abs(m) < .035 ? 'Tangente presque horizontale : ajuste ton point.' : 'Faut-il une pente plus grande ou plus petite ?'}`, result.hits.length ? '✦' : '↗');
             updateControls();
             requestDraw();
         }
     }, state().reducedMotion ? 180 : 650);
 }
+function beginAttempt() { if (!practice && save.activeAttempt === null && !finished) {
+    save.activeAttempt = level.id;
+    persist();
+} }
 let pointerId = null;
 canvas.addEventListener('pointerdown', event => {
     if (busy || finished || dialog.open)
@@ -262,6 +324,7 @@ canvas.addEventListener('pointerdown', event => {
     canvas.setPointerCapture(pointerId);
     aim = nearest.a;
     timerStarted = true;
+    beginAttempt();
     $('#first-tip').hidden = true;
     requestDraw();
 });
@@ -296,20 +359,18 @@ canvas.addEventListener('keydown', event => {
     }
 });
 function revealHint() {
-    assisted = true;
-    hint = true;
-    const a = level.solution, m = derivative(level.curve, a);
-    feedback(`Une solution : <strong>a = ${format(a)}</strong>, donc <strong>f′(a) ≈ ${format(m)}</strong>. ${level.rule === 'choose' ? `Choisis le sens ${level.solutionDirection === 'left' ? '← gauche' : 'droite →'}.` : 'Le cercle pointillé indique le point de tir.'}`, '✧');
-    requestDraw();
-}
-$('#hint').addEventListener('click', () => {
-    if (practice) {
-        revealHint();
+    if (!practice) {
+        show('Une piste pour réfléchir.', `<p>${WORLDS[level.world].lesson}</p><p>${level.targets.some(t => t.boss) ? 'Le gardien se déplace après chaque impact. Observe sa nouvelle position avant de choisir ton prochain point.' : level.par > 1 ? 'Essaie de répartir les cibles entre plusieurs tangentes. Tu n’es pas obligé de toutes les toucher au même tir.' : 'Compare la direction de la courbe au point de départ et la position de la cible.'}</p><p>Les points de tir exacts sont réservés au laboratoire. Un échec y est sans conséquence pour les vies et ne valide pas la campagne.</p>`);
         return;
     }
-    show('Un coup de lumière ?', '<p>L’indice montre une solution sur la courbe et sa pente. Ce niveau rapportera alors <strong>une étoile au maximum</strong> pour cet essai.</p><button class="primary-button" id="confirm-hint">Afficher l’indice ✧</button>');
-    $('#confirm-hint').addEventListener('click', () => { closeModal(); revealHint(); });
-});
+    assisted = true;
+    const next = level.plan.find(s => s.targets.some(id => !destroyed.has(id)) && (s.stage === undefined || s.stage === (damage.get(s.targets[0]) ?? 0))) ?? level.plan[0];
+    const a = next.a, m = derivative(level.curve, a);
+    hint = a;
+    feedback(`Une trajectoire : <strong>a = ${format(a)}</strong>, <strong>f′(a) ≈ ${format(m)}</strong>. ${level.rule === 'choose' ? `Sens ${next.direction === 'left' ? '← gauche' : 'droite →'}.` : ''} ${level.obstacles.length ? 'Attends que le passage soit libre.' : 'Le cercle indique le point de tir.'}`, '✧');
+    requestDraw();
+}
+$('#hint').addEventListener('click', revealHint);
 function openPractice() {
     if (practice) {
         practice = false;
@@ -317,12 +378,22 @@ function openPractice() {
         startLevel(save.lastLevel);
         return;
     }
-    show('Le laboratoire libre.', `<p>Explore les cinq mondes, sans limite de tirs ni chronomètre. Les indices sont libres et les scores de campagne restent inchangés.</p><div class="practice-worlds">${WORLDS.map((w, i) => `<button data-practice="${i}"><span>${w.icon}</span>${w.name} ↗</button>`).join('')}</div>`);
+    show('Le laboratoire libre.', `<p>Explore les ${WORLDS.length} mondes sans limite de tirs, de vies ni de temps. Les solutions y sont libres et ne valident pas la campagne. Quitter un essai de campagne déjà commencé coûte une vie.</p><div class="practice-worlds">${WORLDS.map((w, i) => `<button data-practice="${i}"><span>${w.icon}</span>${w.name} ↗</button>`).join('')}</div>`);
     for (const b of document.querySelectorAll('[data-practice]'))
         b.addEventListener('click', () => { practice = true; closeModal(); startLevel(Number(b.dataset.practice) * 12); });
 }
 $('#practice').addEventListener('click', openPractice);
-function openAchievements() { show('Tes éclats de précision.', achievements(save).map(a => `<div class="achievement ${a.done ? 'done' : ''}"><span class="badge" aria-hidden="true">${a.icon}</span><div><strong>${a.name}</strong><p>${a.text}</p></div><span class="count">${a.done ? '✓' : `${a.value}/${a.goal}`}</span></div>`).join('')); }
+function openAchievements() {
+    const all = achievements(save);
+    show('Tes 50 éclats.', `<p>${all.filter(a => a.done).length}/50 succès débloqués. Les records sont conservés quand tu recommences un monde.</p><div class="achievement-filters" aria-label="Catégories de succès">${['Tous', 'Parcours', 'Précision', 'Combats', 'Maîtrise'].map((c, i) => `<button data-category="${c}" class="${i === 0 ? 'selected' : ''}" aria-pressed="${i === 0}">${c}</button>`).join('')}</div><div id="achievement-list"></div>`);
+    const render = (category) => { $('#achievement-list').innerHTML = all.filter(a => category === 'Tous' || a.category === category).map(a => `<div class="achievement ${a.done ? 'done' : ''}" data-achievement="${a.id}"><span class="badge" aria-hidden="true">${a.icon}</span><div><strong>${a.name}</strong><p>${a.text}</p><div class="achievement-progress" role="progressbar" aria-label="${a.name}" aria-valuenow="${a.value}" aria-valuemin="0" aria-valuemax="${a.goal}"><i style="width:${a.value / a.goal * 100}%"></i></div></div><span class="count">${a.done ? '✓' : `${a.value}/${a.goal}`}</span></div>`).join(''); };
+    render('Tous');
+    for (const b of document.querySelectorAll('[data-category]'))
+        b.addEventListener('click', () => { const category = b.dataset.category; for (const c of document.querySelectorAll('[data-category]')) {
+            c.classList.toggle('selected', c === b);
+            c.setAttribute('aria-pressed', String(c === b));
+        } render(category); });
+}
 $('#achievements').addEventListener('click', openAchievements);
 function openSettings() {
     show('À ta façon.', `<label class="setting-row">Effets sonores<input type="checkbox" id="setting-sound" ${save.sound ? 'checked' : ''}></label><label class="setting-row">Réduire les animations<input type="checkbox" id="setting-motion" ${save.reducedMotion ? 'checked' : ''}></label><p>La progression est stockée uniquement sur cet appareil. Effacer les données du navigateur l’efface aussi. Les paramètres d’accessibilité de ton appareil sont respectés.</p><button class="danger-button" id="reset">Effacer ma progression</button>`);
@@ -339,9 +410,9 @@ function openLesson() {
 }
 $('#lesson').addEventListener('click', openLesson);
 function help() {
-    show('Un geste. Une tangente.', `<p><strong>Touche la courbe turquoise</strong> : le laser suit sa tangente. Détruis les cibles vertes avant d’épuiser tes tirs.</p><p>Tu peux maintenir et glisser pour affiner le point, puis relâcher pour tirer. Sur clavier : <span class="key">← →</span> pour viser, <span class="key">Maj</span> pour affiner, <span class="key">Entrée</span> pour tirer.</p><p>↔ Deux rayons · ← Gauche · → Droite<br>Un obstacle rouge arrête le rayon qui le rencontre.</p><p><strong>Le centrage</strong> vaut 100 % au centre d’un disque et 0 % sur son bord. Pour plusieurs cibles, le moins bon impact compte.<br>★★★ : centrage ≥ 80 %, au premier tir.<br>★★ : centrage ≥ 45 %, en deux tirs maximum.<br>★ : niveau réussi, ou indice utilisé.<br>Les disques rétrécissent progressivement au fil des niveaux.</p><div class="menu-actions"><button class="secondary-button" id="menu-levels">Choisir un niveau</button><button class="secondary-button" id="menu-practice">${practice ? 'Revenir à la campagne' : 'Laboratoire libre'} ↗</button><button class="secondary-button" id="menu-achievements">Mes succès ✧</button><button class="secondary-button" id="menu-lesson">La minute mathématique</button><button class="secondary-button" id="menu-settings">Préférences</button></div>`);
+    show('Un geste. Une tangente.', `<p><strong>Touche la courbe turquoise</strong> : le laser suit sa tangente. Maintiens et glisse pour affiner, puis relâche pour tirer. Au clavier : <span class="key">← →</span>, <span class="key">Maj</span> pour affiner, <span class="key">Entrée</span> pour tirer.</p><p>↔ Deux rayons · ← Gauche · → Droite. Un obstacle rouge arrête sa branche et coûte <strong>une vie par tir</strong>, même si l’autre branche atteint une cible.</p><p><strong>Trois vies par monde.</strong> Un échec, un abandon ou le rechargement d’un essai commencé coûte une vie. À zéro, reprends le monde avec de nouvelles variations ; les records d’étoiles restent conservés. Termine ses 12 niveaux dans l’ordre pour ouvrir le suivant.</p><p>Les cibles blindées demandent plusieurs impacts. Les gardiens ont une résistance visible et changent de trajectoire après chaque impact. Observe aussi les obstacles mobiles.</p><p><strong>Le centrage</strong> vaut 100 % au centre et 0 % au bord. Le moins bon impact compte.<br>★★★ : centrage ≥ 80 %, dans l’objectif de tirs, sans collision.<br>★★ : centrage ≥ 45 %, au plus un tir de plus que l’objectif.<br>★ : autre réussite. Les solutions exactes du laboratoire ne valident pas la campagne.</p><div class="menu-actions"><button class="secondary-button" id="menu-levels">Choisir un niveau</button><button class="secondary-button" id="menu-practice">${practice ? 'Revenir à la campagne' : 'Laboratoire libre'} ↗</button><button class="secondary-button" id="menu-achievements">Mes succès ✧</button><button class="secondary-button" id="menu-lesson">La minute mathématique</button><button class="secondary-button" id="menu-settings">Préférences</button></div>`);
     $('#menu-levels').addEventListener('click', () => {
-        show('Choisis ton défi.', `<div class="level-menu">${Array.from({ length: 12 }, (_, i) => `<button class="secondary-button" data-jump="${level.world * 12 + i}">${String(i + 1).padStart(2, '0')}</button>`).join('')}</div>`);
+        show('Choisis ton défi.', `<div class="level-menu">${Array.from({ length: 12 }, (_, i) => `<button class="secondary-button" data-jump="${level.world * 12 + i}" ${practice || levelUnlocked(save, level.world * 12 + i) ? '' : 'disabled'}>${String(i + 1).padStart(2, '0')}</button>`).join('')}</div>`);
         for (const b of document.querySelectorAll('[data-jump]'))
             b.addEventListener('click', () => { closeModal(); startLevel(Number(b.dataset.jump)); });
     });
@@ -359,20 +430,20 @@ function frame(now) {
     const dt = Math.max(0, Math.min(.1, (now - previous) / 1000));
     previous = now;
     const active = !document.hidden && !dialog.open && !finished;
-    if (active && !busy && level.targets.some(t => t.motion))
+    if (active && !busy && hasMotion(level))
         targetTime += dt;
-    if (active && timerStarted && level.seconds && !practice) {
+    if (active && !busy && timerStarted && level.seconds && !practice) {
         elapsed += dt;
         updateTimer();
         if (elapsed >= level.seconds && !busy)
             finish(false);
     }
-    if (now - lastPaint >= 30 || !active || !level.targets.some(t => t.motion)) {
+    if (now - lastPaint >= 30 || !active || !hasMotion(level)) {
         board.draw(now);
         lastPaint = now;
     }
     const beamAnimating = shot !== null && now - shot.at < 1450;
-    if (!document.hidden && ((active && (level.targets.some(t => t.motion) || (timerStarted && level.seconds && !practice))) || beamAnimating || busy))
+    if (!document.hidden && ((active && (hasMotion(level) || (timerStarted && level.seconds && !practice))) || beamAnimating || busy))
         requestDraw();
 }
 document.addEventListener('visibilitychange', () => { previous = performance.now(); if (!document.hidden)
@@ -388,3 +459,5 @@ document.body.classList.toggle('reduced-motion', save.reducedMotion);
 updateSound();
 startLevel(save.lastLevel);
 connectionState();
+if (interrupted)
+    notify('L’essai interrompu a coûté une vie. Ta progression et tes records sont conservés.');

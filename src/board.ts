@@ -1,5 +1,5 @@
-import { BOUNDS, derivative, format, movingTarget, projection, value, type Level, type Point, type ShotResult } from './engine.js';
-export interface BoardState { level: Level; destroyed: Set<number>; time: number; aim: number | null; shot: {result: ShotResult; at: number} | null; hint: boolean; reducedMotion: boolean }
+import { BOUNDS, derivative, format, movingObstacle, movingTarget, projection, resistance, value, type Level, type Point, type ShotResult } from './engine.js';
+export interface BoardState { level: Level; destroyed: Set<number>; damage: Map<number, number>; time: number; aim: number | null; shot: {result: ShotResult; at: number} | null; hint: number | null; reducedMotion: boolean }
 export class Board {
   private ctx: CanvasRenderingContext2D;
   private background = document.createElement('canvas');
@@ -63,31 +63,43 @@ export class Board {
   }
   draw(now: number) {
     const c = this.ctx, state = this.getState(), level = state.level;
+    // Expose the rendered simulation clock for deterministic canvas QA.
+    this.canvas.dataset.time = state.time.toFixed(3);
     if (level !== this.previousLevel) {this.previousLevel = level;this.updateProjection();this.drawBackground();}
+    const tip = document.getElementById('first-tip');
+    if (tip && !tip.hidden) {
+      const p = this.screen({x: level.solution, y: value(level.curve, level.solution)});
+      tip.style.left = `${p.x}px`;tip.style.top = `${p.y}px`;
+    }
     c.setTransform(1, 0, 0, 1, 0, 0);c.drawImage(this.background, 0, 0);c.scale(this.ratio, this.ratio);
     c.save();c.beginPath();c.rect(12, this.h < 350 ? 30 : 49, this.w - 24, this.h - (this.h < 350 ? 51 : 79));c.clip();
     c.beginPath();
     for (let x = BOUNDS.left; x <= BOUNDS.right + .02; x += .035) {const p = this.screen({x, y: value(level.curve, x)});if (x === BOUNDS.left) c.moveTo(p.x, p.y);else c.lineTo(p.x, p.y);}
     c.strokeStyle = '#69e6dc';c.lineWidth = 2.5;c.lineCap = 'round';c.lineJoin = 'round';c.stroke();
     for (const o of level.obstacles) {
-      const p = this.screen(o), r = o.radius * this.scale;
+      const p = this.screen(movingObstacle(o, state.time)), r = o.radius * this.scale;
       c.fillStyle = '#ff707b1e';c.strokeStyle = '#ff7b84';c.lineWidth = 1.5;c.beginPath();c.arc(p.x, p.y, r, 0, Math.PI * 2);c.fill();c.stroke();
       c.beginPath();c.moveTo(p.x - r * .32, p.y - r * .32);c.lineTo(p.x + r * .32, p.y + r * .32);c.moveTo(p.x + r * .32, p.y - r * .32);c.lineTo(p.x - r * .32, p.y + r * .32);c.stroke();
     }
-    if (state.hint) {
-      const p = this.screen({x: level.solution, y: value(level.curve, level.solution)});
+    if (state.hint !== null) {
+      const p = this.screen({x: state.hint, y: value(level.curve, state.hint)});
       c.strokeStyle = '#d5fb6880';c.lineWidth = 1;c.setLineDash([3, 5]);c.beginPath();c.arc(p.x, p.y, 18, 0, Math.PI * 2);c.stroke();c.setLineDash([]);
     }
     for (const t of level.targets) {
-      const p = this.screen(movingTarget(level, t, state.time)), r = t.radius * this.scale;
+      const taken = state.damage.get(t.id) ?? 0;
+      const p = this.screen(movingTarget(level, t, state.time, taken)), r = t.radius * this.scale;
       if (state.destroyed.has(t.id)) {c.strokeStyle = '#d5fb6833';c.lineWidth = 1;c.beginPath();c.arc(p.x, p.y, r + 2, 0, Math.PI * 2);c.stroke();continue;}
       c.fillStyle = '#d5fb6812';c.strokeStyle = '#d5fb6855';c.lineWidth = 1;c.beginPath();c.arc(p.x, p.y, r + 5, 0, Math.PI * 2);c.fill();c.stroke();
-      c.fillStyle = '#d5fb68';c.beginPath();c.arc(p.x, p.y, r, 0, Math.PI * 2);c.fill();
+      c.fillStyle = t.boss ? '#ff86ce' : '#d5fb68';c.beginPath();c.arc(p.x, p.y, r, 0, Math.PI * 2);c.fill();
+      if (resistance(t) > 1) {
+        c.strokeStyle = t.boss ? '#ff86ce' : '#d5fb68';c.lineWidth = t.boss ? 2 : 1;
+        c.beginPath();c.arc(p.x, p.y, r + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (resistance(t) - taken) / resistance(t));c.stroke();
+      }
       c.fillStyle = '#192c27';c.beginPath();c.arc(p.x, p.y, 2, 0, Math.PI * 2);c.fill();
       c.fillStyle = '#baca92';c.font = '8px ui-monospace,monospace';c.textAlign = 'center';
-      const position = movingTarget(level, t, state.time);
+      const position = movingTarget(level, t, state.time, taken);
       const textX = Math.max(47, Math.min(this.w - 47, p.x));
-      c.fillText(`(${format(position.x, 1)} ; ${format(position.y, 1)})`, textX, p.y - r - 10 - (t.id % 2) * 14);
+      c.fillText(t.boss ? `GARDIEN ${resistance(t) - taken}/${resistance(t)}` : resistance(t) > 1 ? `BLINDÉE ${resistance(t) - taken}/${resistance(t)}` : `(${format(position.x, 1)} ; ${format(position.y, 1)})`, textX, p.y - r - 12 - (t.id % 2) * 14);
     }
     if (state.shot) {
       const age = now - state.shot.at, result = state.shot.result, p = this.screen(result.origin);

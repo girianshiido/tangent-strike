@@ -1,7 +1,7 @@
-// TANGENT STRIKE — atomic offline shell bfeaa4adcdd1
+// TANGENT STRIKE — atomic offline shell 888ad2bc26b8
 const PREFIX = 'tangent-strike:' + self.registration.scope + ':';
-const CACHE = PREFIX + 'bfeaa4adcdd1';
-const FILES = ["./","./assets/board.js","./assets/engine.js","./assets/install.js","./assets/main.js","./assets/storage.js","./assets/styles.css","./icons/apple-touch-icon.png","./icons/icon-192.png","./icons/icon-512.png","./icons/icon.svg","./icons/maskable-512.png","./index.html","./manifest.webmanifest"];
+const CACHE = PREFIX + '888ad2bc26b8';
+const FILES = ["./","./assets/2d109fe9081d/board.js","./assets/2d109fe9081d/engine.js","./assets/2d109fe9081d/install.js","./assets/2d109fe9081d/main.js","./assets/2d109fe9081d/storage.js","./assets/2d109fe9081d/styles.css","./icons/apple-touch-icon.png","./icons/icon-192.png","./icons/icon-512.png","./icons/icon.svg","./icons/maskable-512.png","./index.html","./manifest.webmanifest"];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES)).then(() => self.skipWaiting()));
 });

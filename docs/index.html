@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101b25">
-  <meta name="description" content="Touche une courbe. Tire sa tangente. Un jeu de précision pour découvrir les dérivées : 60 défis, cinq mondes, jouable hors connexion.">
+  <meta name="description" content="Touche une courbe. Tire sa tangente. 84 défis, sept mondes, vies, obstacles mobiles et gardiens, jouables hors connexion.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>TANGENT STRIKE — Le laser des dérivées</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="./assets/styles.css">
-  <script type="module" src="./assets/main.js"></script>
+  <link rel="stylesheet" href="./assets/2d109fe9081d/styles.css">
+  <script type="module" src="./assets/2d109fe9081d/main.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -25,17 +25,17 @@
       <div class="sidebar-heading"><div><p class="eyebrow">TA TRAJECTOIRE</p><h1>La campagne<span>.</span></h1></div><span class="campaign-count" id="campaign-count">00 / 60</span></div>
       <div class="progress-track"><span id="campaign-progress"></span></div>
       <nav class="worlds" id="worlds" aria-label="Les cinq mondes"></nav>
-      <div class="sidebar-bottom"><button id="practice" class="practice-button"><span>⌁</span><span><strong>Laboratoire libre</strong><small>Tous les mondes, sans limite de tirs</small></span><span>↗</span></button><button class="achievements-button" id="achievements">✧ <span>Mes succès</span><span id="achievement-count">0 / 6</span></button></div>
+      <div class="sidebar-bottom"><button id="practice" class="practice-button"><span>⌁</span><span><strong>Laboratoire libre</strong><small>Tous les mondes, sans limite de tirs</small></span><span>↗</span></button><button class="achievements-button" id="achievements">✧ <span>Mes succès</span><span id="achievement-count">0 / 50</span></button></div>
       <p class="save-caption" id="save-caption">● Progression enregistrée sur cet appareil</p>
     </aside>
     <section class="play-area" aria-label="Zone de jeu">
-      <div class="level-heading"><div><p class="eyebrow" id="world-caption">MONDE 01 / TIR HORIZONTAL</p><h2 id="level-title">Premier contact</h2></div><div class="level-number"><span>NIVEAU</span><strong id="level-number">01<span> / 12</span></strong></div></div>
+      <div class="level-heading"><div><p class="eyebrow" id="world-caption">MONDE 01 / TIR HORIZONTAL</p><h2 id="level-title">Premier contact</h2></div><div class="level-number"><span>NIVEAU</span><strong id="level-number">01<span> / 12</span></strong><div id="health" class="health" role="status" aria-label="3 points de vie sur 3">♥♥♥</div></div></div>
       <div class="level-select" id="levels" aria-label="Niveaux du monde"></div>
       <div class="mission"><div class="mission-icon" aria-hidden="true">⌖</div><div><strong id="instruction">Trouve une tangente horizontale.</strong><span id="mission-detail">Touche un point de la courbe pour tirer.</span></div><span class="mode-badge" id="mode-badge">CAMPAGNE</span></div>
       <div class="arena" id="arena">
         <div class="arena-top"><span class="function" id="function">f(x) = 0,22x²</span><span class="direction-badge" id="direction-badge">↔ Double rayon</span></div>
         <canvas id="board" tabindex="0" role="application" aria-label="Repère interactif. Touche la courbe pour tirer. Au clavier, utilise les flèches puis Entrée."></canvas>
-        <div class="first-tip" id="first-tip"><span>↙</span> Touche le creux de la courbe</div>
+        <div class="first-tip" id="first-tip"><svg viewBox="0 0 34 34" aria-hidden="true"><path d="M29 29L2 2M2 13V2H13"/></svg><span>Touche le creux de la courbe</span></div>
         <div class="arena-bottom"><span><i class="legend-curve"></i> COURBE</span><span><i class="legend-target"></i> CIBLE</span><span id="obstacle-legend" hidden><i class="legend-obstacle"></i> OBSTACLE</span><span class="coordinates" id="coordinates">x → &nbsp; y ↑</span></div>
         <div id="result" class="result" hidden aria-live="polite"></div>
       </div>
@@ -44,7 +44,7 @@
       <div class="bottom-note"><span><i></i> COMPRENDRE. VISER. RECOMMENCER.</span><button id="lesson">La minute mathématique ↗</button></div>
     </section>
   </main>
-  <footer class="page-footer"><span>TANGENT STRIKE <span class="muted">/</span> Des courbes, du sens, du jeu.</span><button id="settings">Préférences</button><span class="footer-version">60 DÉFIS · 5 MONDES · ZÉRO COMPTE</span></footer>
+  <footer class="page-footer"><span>TANGENT STRIKE <span class="muted">/</span> Des courbes, du sens, du jeu.</span><button id="settings">Préférences</button><span class="footer-version">84 DÉFIS · 7 MONDES · ZÉRO COMPTE</span></footer>
   <dialog id="modal"><div class="modal-header"><span class="eyebrow" id="modal-caption">TANGENT STRIKE</span><button id="close-modal" class="icon-button" aria-label="Fermer">×</button></div><div id="modal-content"></div></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
   <noscript>Active JavaScript pour jouer à TANGENT STRIKE.</noscript>

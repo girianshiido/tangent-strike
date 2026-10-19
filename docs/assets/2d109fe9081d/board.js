@@ -1,4 +1,4 @@
-import { BOUNDS, derivative, format, movingTarget, projection, value } from './engine.js';
+import { BOUNDS, derivative, format, movingObstacle, movingTarget, projection, resistance, value } from './engine.js';
 export class Board {
     canvas;
     getState;
@@ -122,10 +122,18 @@ export class Board {
     }
     draw(now) {
         const c = this.ctx, state = this.getState(), level = state.level;
+        // Expose the rendered simulation clock for deterministic canvas QA.
+        this.canvas.dataset.time = state.time.toFixed(3);
         if (level !== this.previousLevel) {
             this.previousLevel = level;
             this.updateProjection();
             this.drawBackground();
+        }
+        const tip = document.getElementById('first-tip');
+        if (tip && !tip.hidden) {
+            const p = this.screen({ x: level.solution, y: value(level.curve, level.solution) });
+            tip.style.left = `${p.x}px`;
+            tip.style.top = `${p.y}px`;
         }
         c.setTransform(1, 0, 0, 1, 0, 0);
         c.drawImage(this.background, 0, 0);
@@ -148,7 +156,7 @@ export class Board {
         c.lineJoin = 'round';
         c.stroke();
         for (const o of level.obstacles) {
-            const p = this.screen(o), r = o.radius * this.scale;
+            const p = this.screen(movingObstacle(o, state.time)), r = o.radius * this.scale;
             c.fillStyle = '#ff707b1e';
             c.strokeStyle = '#ff7b84';
             c.lineWidth = 1.5;
@@ -163,8 +171,8 @@ export class Board {
             c.lineTo(p.x - r * .32, p.y + r * .32);
             c.stroke();
         }
-        if (state.hint) {
-            const p = this.screen({ x: level.solution, y: value(level.curve, level.solution) });
+        if (state.hint !== null) {
+            const p = this.screen({ x: state.hint, y: value(level.curve, state.hint) });
             c.strokeStyle = '#d5fb6880';
             c.lineWidth = 1;
             c.setLineDash([3, 5]);
@@ -174,7 +182,8 @@ export class Board {
             c.setLineDash([]);
         }
         for (const t of level.targets) {
-            const p = this.screen(movingTarget(level, t, state.time)), r = t.radius * this.scale;
+            const taken = state.damage.get(t.id) ?? 0;
+            const p = this.screen(movingTarget(level, t, state.time, taken)), r = t.radius * this.scale;
             if (state.destroyed.has(t.id)) {
                 c.strokeStyle = '#d5fb6833';
                 c.lineWidth = 1;
@@ -190,10 +199,17 @@ export class Board {
             c.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
             c.fill();
             c.stroke();
-            c.fillStyle = '#d5fb68';
+            c.fillStyle = t.boss ? '#ff86ce' : '#d5fb68';
             c.beginPath();
             c.arc(p.x, p.y, r, 0, Math.PI * 2);
             c.fill();
+            if (resistance(t) > 1) {
+                c.strokeStyle = t.boss ? '#ff86ce' : '#d5fb68';
+                c.lineWidth = t.boss ? 2 : 1;
+                c.beginPath();
+                c.arc(p.x, p.y, r + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (resistance(t) - taken) / resistance(t));
+                c.stroke();
+            }
             c.fillStyle = '#192c27';
             c.beginPath();
             c.arc(p.x, p.y, 2, 0, Math.PI * 2);
@@ -201,9 +217,9 @@ export class Board {
             c.fillStyle = '#baca92';
             c.font = '8px ui-monospace,monospace';
             c.textAlign = 'center';
-            const position = movingTarget(level, t, state.time);
+            const position = movingTarget(level, t, state.time, taken);
             const textX = Math.max(47, Math.min(this.w - 47, p.x));
-            c.fillText(`(${format(position.x, 1)} ; ${format(position.y, 1)})`, textX, p.y - r - 10 - (t.id % 2) * 14);
+            c.fillText(t.boss ? `GARDIEN ${resistance(t) - taken}/${resistance(t)}` : resistance(t) > 1 ? `BLINDÉE ${resistance(t) - taken}/${resistance(t)}` : `(${format(position.x, 1)} ; ${format(position.y, 1)})`, textX, p.y - r - 12 - (t.id % 2) * 14);
         }
         if (state.shot) {
             const age = now - state.shot.at, result = state.shot.result, p = this.screen(result.origin);

@@ -2,9 +2,15 @@ import {cp, mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 await rm('docs', {recursive:true, force:true});
 await mkdir('docs/assets', {recursive:true});
-await cp('.build', 'docs/assets', {recursive:true});
-await cp('src/styles.css', 'docs/assets/styles.css');
-await cp('index.html', 'docs/index.html');
+// Every module gets a new URL together, so an older installed worker cannot mix releases.
+const clientHash = createHash('sha256');
+for (const f of (await readdir('.build')).sort()) {clientHash.update(f);clientHash.update(await readFile(`.build/${f}`));}
+clientHash.update(await readFile('src/styles.css'));
+const clientVersion = clientHash.digest('hex').slice(0, 12);
+await cp('.build', `docs/assets/${clientVersion}`, {recursive:true});
+await cp('src/styles.css', `docs/assets/${clientVersion}/styles.css`);
+const html = (await readFile('index.html', 'utf8')).replaceAll('./assets/', `./assets/${clientVersion}/`);
+await writeFile('docs/index.html', html);
 await cp('public', 'docs', {recursive:true});
 await writeFile('docs/.nojekyll', '');
 async function files(dir, prefix = '') {const out=[];for (const e of await readdir(dir,{withFileTypes:true})) {const name=prefix+e.name;if(e.isDirectory())out.push(...await files(`${dir}/${e.name}`, `${name}/`));else out.push(name);}return out;}

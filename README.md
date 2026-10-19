@@ -1,38 +1,68 @@
 # TANGENT STRIKE — Le laser des dérivées
 
-**Touche une courbe. Tire sa tangente.** Un jeu de géométrie des fonctions, en français, pour téléphone, tablette et ordinateur.
+**Touche une courbe. Tire sa tangente.** Un jeu de géométrie des fonctions en français, pour téléphone, tablette et ordinateur.
 
-## Jouer et installer
+[Jouer et installer](https://girianshiido.github.io/tangent-strike/)
 
-[Ouvrir le jeu](https://girianshiido.github.io/tangent-strike/)
+## Campagne : 84 défis, sept mondes
 
-Le bouton **Installer** utilise la proposition du navigateur lorsqu’elle est disponible. Sur iPhone/iPad, il explique l’ajout à l’écran d’accueil depuis Safari. Le jeu fonctionne également sans installation, dans le navigateur.
+1. **Tir horizontal** : reconnaître une pente nulle, y compris sans extremum.
+2. **La bonne pente** : anticiper la tangente et le sens du laser.
+3. **Double impact** : atteindre deux cibles avec une même tangente.
+4. **Zone interdite** : éviter les obstacles et protéger ses vies.
+5. **Laser Master** : deux tangentes distinctes, ou une tangente commune à un instant précis.
+6. **Trajectoires croisées** : trois cibles réparties sur deux ou trois tangentes, puis des cibles blindées.
+7. **Champ instable** : obstacles mobiles, croisements, blindages et gardien final.
 
-Le premier chargement connecté prépare tous les fichiers nécessaires au jeu hors connexion. Les étoiles, succès et préférences restent sur l’appareil, sans compte ni service distant. Effacer les données du navigateur efface la progression.
+Chaque monde compte 12 niveaux. La campagne les débloque dans l’ordre ; terminer les 12 ouvre le monde suivant. Le laboratoire donne un accès libre à tous les défis sans valider la campagne.
 
-## Règles
+## Vies et résistance
 
-- Touche la courbe turquoise : le laser suit la tangente au point choisi.
-- Maintiens et glisse pour ajuster le point, puis relâche pour tirer.
-- Les cibles vertes interceptées sont détruites. Un obstacle rouge arrête uniquement la branche qui le rencontre ; les cibles derrière restent protégées.
-- **↔** : tir dans les deux sens. **← / →** : sens imposé, ou choisi avant le tir. Droite signifie abscisses croissantes, indépendamment du signe de la pente.
-- Au clavier : sélectionne le repère avec Tab, utilise les flèches pour viser, Maj pour affiner, Entrée pour tirer.
+La campagne accorde **trois vies par monde**. Un obstacle touché coûte une vie par tir, même si l’autre branche atteint une cible. Plusieurs obstacles touchés par le même tir ne cumulent pas les dégâts. Épuiser les tirs ou le temps coûte une vie ; une collision sur le dernier tir n’ajoute pas un deuxième malus pour cet échec.
 
-60 défis, répartis en cinq mondes de 12 niveaux : **Tir horizontal**, **La bonne pente**, **Double impact**, **Zone interdite**, **Laser Master**. Réussir 8 niveaux d’un monde débloque le suivant. Les niveaux d’un monde ouvert peuvent être joués dans l’ordre de son choix.
+Abandonner, recommencer ou recharger un essai déjà commencé coûte une vie. À zéro, le monde reprend au premier niveau avec trois vies et une nouvelle variation des défis. Les records d’étoiles, les succès acquis et l’accès aux mondes déjà ouverts restent conservés.
 
-Le premier monde demande explicitement une tangente horizontale, avec une petite tolérance de pente pour le toucher. Il comprend aussi des points stationnaires qui ne sont pas des extrema. Dans Double impact, les deux cibles doivent être atteintes au même tir. Les derniers niveaux proposent des cibles mobiles et quelques défis de 25 secondes. Le temps commence au premier geste et se suspend lorsque la page est masquée ou qu’un menu est ouvert.
+Les **cibles blindées** demandent deux impacts. Les derniers niveaux des mondes 5, 6 et 7 mettent en scène un **gardien** de 3, 4 ou 5 points de résistance. Il se déplace et change de position et de tangente après chaque impact ; les deux derniers gardiens ont des cibles d’escorte. Les anneaux et les nombres indiquent la résistance restante.
 
-Les étoiles récompensent à la fois le centrage et l’économie de tirs : **trois étoiles** pour un centrage d’au moins 80 % au premier tir, **deux** pour au moins 45 % en deux tirs maximum, **une** pour une autre réussite. Le centrage vaut 100 % si le rayon passe au centre du disque, 0 % s’il en effleure le bord ; pour plusieurs cibles, le moins bon impact compte. Les messages distinguent « Cible touchée », « Tir précis » et « Plein centre ». Les disques rétrécissent progressivement, de 0,30 à 0,178 unité de rayon.
+Le nombre de tirs tient compte des tangentes nécessaires et des résistances. L’« objectif » affiché est le budget de référence pour les étoiles. Les derniers défis ont parfois un chronomètre : il commence au premier geste et se suspend dans les menus ou lorsque la page est masquée.
 
-Un indice limite l’essai à une étoile ; rejouer ne diminue jamais le meilleur score. Le **laboratoire libre**, accessible depuis le menu « ? » sur téléphone, ouvre tous les mondes sans limite de tirs ni chronomètre et propose de nouvelles variations après une réussite, sans modifier la campagne. En paysage sur un petit écran, la sélection des niveaux est également accessible depuis ce menu pour préserver la place du repère.
+## Commandes et récompenses
 
-## Mathématiques
+- Touche la courbe turquoise pour choisir le départ du laser.
+- Maintiens et glisse pour ajuster, puis relâche pour tirer.
+- **↔** tire dans les deux sens. **← / →** impose ou permet de choisir le sens avant le tir.
+- Au clavier : sélectionne le repère avec Tab, flèches pour viser, Maj pour affiner, Entrée pour tirer.
+- Un disque doit être intercepté pour subir un impact. Le halo extérieur est décoratif.
 
-La tangente au point d’abscisse a est calculée par `y = f′(a)(x − a) + f(a)`. Les dérivées sont analytiques ; aucun échantillonnage visuel n’est utilisé pour déterminer la pente.
+Le centrage vaut 100 % au centre du disque, 0 % au bord. Le moins bon impact du niveau compte, y compris les impacts successifs sur un blindage ou un gardien.
 
-Les défis sont construits à partir d’un point de tir et de sa tangente. Les cibles mobiles se déplacent le long de cette tangente : une solution reste disponible à tout instant. Les obstacles sont placés pour préserver la solution de construction. Toute autre trajectoire satisfaisant l’objectif du monde est acceptée. Les collisions utilisent les rayons orientés et des intersections exactes avec les disques des cibles et obstacles. Les axes conservent la même échelle.
+- **★★★** : centrage d’au moins 80 %, dans l’objectif de tirs et sans collision.
+- **★★** : au moins 45 %, avec au maximum un tir de plus que l’objectif.
+- **★** : autre réussite.
 
-## Développement
+Une nouvelle tentative ne diminue pas un record d’étoiles. Les indices de campagne expliquent une méthode sans donner le point exact. Les solutions chiffrées et les marqueurs de tir sont réservés au laboratoire : ils n’accordent ni étoiles, ni progression, ni succès de combat.
+
+**50 succès** sont répartis en quatre catégories filtrables : Parcours, Précision, Combats et Maîtrise. Leurs jauges suivent les niveaux différents, les étoiles, les impacts multiples, les blindages, les gardiens et les séries sans échec. Les trois gardiens doivent réellement être vaincus pour leurs succès, même avec une ancienne sauvegarde complète.
+
+## Installation, sauvegarde et audio
+
+Le bouton **Installer** utilise la proposition du navigateur lorsqu’elle est disponible. Sur iPhone/iPad, il explique l’ajout à l’écran d’accueil depuis Safari. Le jeu fonctionne aussi directement dans le navigateur.
+
+Le premier chargement connecté prépare tous les fichiers pour jouer hors connexion. La progression reste sur l’appareil, sans compte. Les sauvegardes de la première version (60 niveaux) sont migrées : les étoiles et les mondes déjà ouverts sont conservés. Effacer les données du navigateur efface la sauvegarde.
+
+Les bruitages sont synthétisés à la demande par **Web Audio** : oscillateurs sinusoïdaux, variation de fréquence et enveloppe de volume. Aucun fichier audio, téléchargement sonore ou service externe n’est utilisé. Le bouton de son et les préférences permettent de les désactiver.
+
+L’interface de jeu tient sans défilement sur les formats de test, à partir de 320 × 480 pixels. Sur petit écran en paysage, les niveaux se choisissent dans le menu « ? » pour préserver la place du repère.
+
+## Mathématiques et génération
+
+La tangente au point d’abscisse a est calculée par `y = f′(a)(x − a) + f(a)`. Les dérivées sont analytiques. Les axes gardent la même échelle ; le cadrage inclut les déplacements complets des cibles, les phases des gardiens et les obstacles.
+
+Les cibles sont construites sur une ou plusieurs tangentes. Chacune peut se déplacer le long de sa propre tangente, tout en restant atteignable. Les rendez-vous mobiles croisent également une tangente commune à certains instants, permettant un tir groupé. Les obstacles mobiles ouvrent et ferment des passages ; les tests cherchent des fenêtres sûres dans leur cycle.
+
+Les collisions utilisent les intersections de rayons orientés avec des disques, à l’instant du tir. Un obstacle arrête sa seule branche. Un même appui ne retire qu’un point de résistance par cible, même en double rayon. Toute autre trajectoire satisfaisant l’objectif est acceptée. Le premier monde demande explicitement une tangente horizontale, avec une petite tolérance de pente pour le toucher.
+
+## Développer et vérifier
 
 Node.js 22 ou ultérieur, pnpm.
 
@@ -44,19 +74,19 @@ pnpm build
 pnpm dev
 ```
 
-L’aperçu est disponible à `http://127.0.0.1:5191/`. Le dossier `docs/` contient l’export autonome pour GitHub Pages ; aucun serveur applicatif ni police distante n’est nécessaire.
+L’aperçu est disponible à `http://127.0.0.1:5191/`. `docs/` contient l’export autonome pour GitHub Pages ; le jeu n’a besoin d’aucun serveur applicatif ni police distante.
 
 ```sh
 pnpm exec playwright install chromium
 pnpm qa
 ```
 
-Les variables facultatives `CHROME_PATH`, `PLAYWRIGHT_MODULE` et `QA_URL` permettent d’utiliser un navigateur déjà installé et de tester une autre URL. Le contrôle navigateur joue les 60 niveaux par les commandes tactiles, vérifie onze tailles d’écran (à partir de 320 × 480), les boutons du menu, la persistance, l’installabilité Chromium et un rechargement hors connexion. Les résultats et captures sont écrits dans `test-results/` (ignoré par Git).
+`CHROME_PATH`, `PLAYWRIGHT_MODULE` et `QA_URL` permettent d’utiliser un navigateur installé et une autre URL. Les résultats et captures sont enregistrés dans `test-results/`, ignoré par Git.
 
-Les tests du moteur vérifient également 1 260 défis et variations à sept instants, les dérivées par différences finies, les sens de tir, l’occlusion, le déblocage et les sauvegardes invalides.
+Les tests du moteur contrôlent 1 764 défis et variations à sept instants de départ, les fenêtres des obstacles mobiles, les répartitions de cibles, les résistances, les phases des gardiens, les vies, la migration et les 50 succès. Les essais navigateur jouent les 84 défis par les commandes tactiles et vérifient onze formats, la flèche, les malus, les reprises, le laboratoire et le rechargement hors connexion.
 
-## Publication
+## Publier
 
-Configurer GitHub Pages sur **main / docs** après `pnpm build`. Le service worker reçoit un nom de cache dérivé du contenu et ne supprime que les anciennes versions appartenant à cette application et à sa portée. Les autres jeux hébergés sur le même domaine gardent leurs caches.
+Après `pnpm build`, GitHub Pages sert **main / docs**. Les modules utilisent un chemin versionné commun pour éviter de mélanger deux versions dans une application déjà installée. Le service worker utilise un cache dérivé du contenu et ne supprime que les anciennes versions de cette application et de sa portée. `node scripts/verify-public.mjs` compare les fichiers publics à l’export local.
 
-L’installation physique sur iOS/Android et le confort tactile réel restent à confirmer sur appareils ; les tests automatisés simulent les tailles et les interactions, sans remplacer cet essai.
+Les tests simulent les formats et les gestes. Le confort tactile et l’installation physique sur iOS/Android restent à confirmer sur appareils.
