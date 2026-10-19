@@ -1,0 +1,14 @@
+{
+  "name": "tangent-strike",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test tests/*.test.mjs",
+    "dev": "node scripts/serve.mjs",
+    "qa": "node scripts/browser-qa.mjs"
+  },
+  "devDependencies": { "typescript": "5.9.3", "playwright": "1.62.1" }
+}
