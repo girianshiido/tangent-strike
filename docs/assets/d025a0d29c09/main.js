@@ -1,7 +1,9 @@
 import { Board, shotDuration } from './board.js';
-import { derivative, fire, format, hasMotion, makeLevel, resistance, ruleLabel, TOTAL_LEVELS, WORLDS } from './engine.js';
+import { derivative, fire, format, hasMotion, makeLevel, movingTarget, resistance, ruleLabel, TOTAL_LEVELS, WORLDS } from './engine.js';
 import { achievements, award, failAttempt, freshSave, levelUnlocked, loseLife, MAX_LIVES, readSave, recordImpacts, recoverInterruptedAttempt, restartWorld, resumeLevel, worldUnlocked, writeSave } from './storage.js';
 import { setupInstallation } from './install.js';
+import { icon, worldIcon } from './icons.js';
+import { SoundBank } from './sound.js';
 const $ = (selector) => document.querySelector(selector);
 let save = readSave();
 const interrupted = recoverInterruptedAttempt(save);
@@ -12,12 +14,21 @@ let direction = 'both', aim = null, shot = null;
 let impactPrecision = new Map();
 let collisions = 0;
 let elapsed = 0, targetTime = 0, timerStarted = false, token = 0, raf = 0, previous = performance.now(), lastPaint = 0;
-let soundContext = null, storageWarning = false, toastTimer = 0;
+let storageWarning = false, toastTimer = 0;
 const dialog = $('#modal');
 const canvas = $('#board');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const state = () => ({ level, destroyed, damage, time: targetTime, aim, shot, hint, reducedMotion: save.reducedMotion || motionPreference.matches });
+const sounds = new SoundBank(() => save.sound);
+$('.brand-icon').innerHTML = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M5 24Q15-5 27 24M3 21l26-8"/><circle cx="16" cy="17" r="2.2" fill="currentColor" stroke="none"/></svg>';
+$('.mission-icon').innerHTML = icon('target');
+$('#retry').innerHTML = icon('retry');
+$('#practice>span:first-child').innerHTML = icon('lab');
 const board = new Board(canvas, state, () => requestDraw());
+document.addEventListener('pointerdown', () => sounds.unlock(), { capture: true });
+document.addEventListener('keydown', () => sounds.unlock(), { capture: true });
+document.addEventListener('click', event => { const button = event.target.closest('button'); if (button && !button.disabled && button.id !== 'sound' && button.id !== 'setting-sound' && button.id !== 'sound-preview')
+    sounds.play('tap'); }, { capture: true });
 function persist() {
     if (!writeSave(save) && !storageWarning) {
         storageWarning = true;
@@ -39,40 +50,18 @@ dialog.addEventListener('click', event => { if (event.target === dialog) {
         closeModal();
 } });
 dialog.addEventListener('close', () => { previous = performance.now(); requestDraw(); });
-function playTone(type) {
-    if (!save.sound)
-        return;
-    try {
-        soundContext ??= new AudioContext();
-        void soundContext.resume();
-        const time = soundContext.currentTime;
-        const notes = type === 'win' ? [523.25, 659.25, 783.99] : type === 'hit' ? [659.25, 987.77] : [440];
-        notes.forEach((f, i) => {
-            const oscillator = soundContext.createOscillator(), gain = soundContext.createGain();
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(f, time + i * .08);
-            if (type === 'shot')
-                oscillator.frequency.exponentialRampToValueAtTime(120, time + .16);
-            gain.gain.setValueAtTime(0, time + i * .08);
-            gain.gain.linearRampToValueAtTime(.055, time + i * .08 + .012);
-            gain.gain.exponentialRampToValueAtTime(.001, time + i * .08 + .2);
-            oscillator.connect(gain);
-            gain.connect(soundContext.destination);
-            oscillator.start(time + i * .08);
-            oscillator.stop(time + i * .08 + .22);
-        });
-    }
-    catch { /* Gameplay remains available without Web Audio. */ }
-}
-function updateSound() { const b = $('#sound'); b.textContent = save.sound ? '♫' : '♪'; b.setAttribute('aria-label', save.sound ? 'Désactiver le son' : 'Activer le son'); b.setAttribute('aria-pressed', String(save.sound)); }
-$('#sound').addEventListener('click', () => { save.sound = !save.sound; persist(); updateSound(); });
+function updateSound() { const b = $('#sound'); b.innerHTML = icon(save.sound ? 'sound' : 'mute'); b.setAttribute('aria-label', save.sound ? 'Désactiver le son' : 'Activer le son'); b.setAttribute('aria-pressed', String(save.sound)); }
+$('#sound').addEventListener('click', () => { save.sound = !save.sound; if (save.sound)
+    sounds.play('tap');
+else
+    sounds.stop(); persist(); updateSound(); });
 function updateCampaign() {
     const count = save.stars.filter(Boolean).length;
     $('#campaign-count').textContent = `${String(count).padStart(2, '0')} / ${TOTAL_LEVELS}`;
     $('#campaign-progress').style.width = `${count / TOTAL_LEVELS * 100}%`;
     $('#worlds').innerHTML = WORLDS.map((w, i) => {
         const open = practice || worldUnlocked(save, i), won = save.runs[i].next;
-        return `<button class="world-card ${i === level.world ? 'active' : ''} ${open ? '' : 'locked'}" data-world="${i}" aria-label="Monde ${i + 1} : ${w.name}${open ? '' : ', verrouillé'}" aria-current="${i === level.world ? 'true' : 'false'}" style="--world:${w.color}"><span class="world-icon" aria-hidden="true">${w.icon}</span><span><small>MONDE 0${i + 1}</small><strong>${w.name}</strong></span><span class="world-status">${open ? `${won}/12` : '⌑'}</span></button>`;
+        return `<button class="world-card ${i === level.world ? 'active' : ''} ${open ? '' : 'locked'}" data-world="${i}" aria-label="Monde ${i + 1} : ${w.name}${open ? '' : ', verrouillé'}" aria-current="${i === level.world ? 'true' : 'false'}" style="--world:${w.color}"><span class="world-icon" aria-hidden="true">${worldIcon(i)}</span><span><small>MONDE 0${i + 1}</small><strong>${w.name}</strong></span><span class="world-status">${open ? `${won}/12` : '⌑'}</span></button>`;
     }).join('');
     $('#levels').innerHTML = Array.from({ length: 12 }, (_, i) => {
         const id = level.world * 12 + i, stars = save.stars[id];
@@ -213,7 +202,8 @@ function finish(win, double = false, collisionAlreadyCharged = false) {
     const dead = !practice && save.runs[level.world].lives === 0;
     const grade = objectiveMet && precision >= .8 - 1e-9 ? 'Plein centre.' : objectiveMet && precision >= .45 - 1e-9 ? 'Tir précis.' : level.targets.length > 1 ? 'Cibles touchées.' : 'Cible touchée.';
     const centering = `Centrage : ${Math.round(precision * 100)} % · ${used} tir${used > 1 ? 's' : ''}.`;
-    $('#result').innerHTML = `<div class="result-mark" aria-hidden="true">${dead ? '♡' : win ? '✦' : '↻'}</div>${win && !practice ? `<div class="stars" aria-label="${stars} étoile${stars > 1 ? 's' : ''}">${Array.from({ length: 3 }, (_, i) => `<span class="${i < stars ? '' : 'empty'}">★</span>`).join('')}</div>` : ''}<h3>${dead ? 'Bouclier épuisé.' : allDone ? 'Dérivée suprême !' : win ? collisions ? 'Objectif atteint.' : grade : 'Ajuste ta trajectoire.'}</h3><p>${dead ? 'Retour au premier niveau du monde avec trois vies et de nouvelles variations. Tes records d’étoiles sont conservés.' : allDone ? `Les ${TOTAL_LEVELS} défis sont réussis. Reviens chercher les trois étoiles ou explore le laboratoire.` : win ? `${centering} ${collisions ? 'Collision : une vie perdue, trois étoiles impossibles.' : practice ? 'Le laboratoire ne valide pas la campagne.' : !objectiveMet ? 'Une étoile pour la cible touchée. Cherche une tangente horizontale pour en gagner davantage.' : after > before ? 'Un nouveau succès est débloqué !' : save.runs[level.world].next === 12 ? 'Monde terminé ! Le suivant est ouvert.' : precision < .8 ? 'Vise le centre pour améliorer tes étoiles.' : 'Un rayon au plus près du centre de chaque cible.'}` : `${elapsed >= level.seconds && level.seconds > 0 ? 'Le temps est écoulé.' : 'Les tirs sont épuisés.'} ${collisionAlreadyCharged ? 'La collision a coûté une vie.' : 'Une vie perdue.'} Il reste ${save.runs[level.world].lives} vie${save.runs[level.world].lives > 1 ? 's' : ''}.`}</p><div class="result-buttons"><button class="primary-button" id="result-next">${dead ? 'Recommencer le monde ↻' : win ? practice ? 'Nouvelle variation ↗' : allDone ? 'Rejouer le monde ↻' : save.runs[level.world].next === 12 && level.world < WORLDS.length - 1 ? 'Monde suivant →' : 'Continuer →' : 'Réessayer ↻'}</button><button class="secondary-button" id="result-replay">${dead ? 'Laboratoire libre' : win ? 'Rejouer' : 'Comprendre la règle'}</button></div>${win && !practice ? `<p class="mini">Objectif : ≤ ${level.par} tirs · ★★★ : plein centre, sans collision</p>` : ''}`;
+    $('#result').innerHTML = `<div class="result-mark" aria-hidden="true">${icon(dead ? 'shield' : win ? 'trophy' : 'retry')}</div>${win && !practice ? `<div class="stars" aria-label="${stars} étoile${stars > 1 ? 's' : ''}">${Array.from({ length: 3 }, (_, i) => `<span class="${i < stars ? '' : 'empty'}">★</span>`).join('')}</div>` : ''}<h3>${dead ? 'Bouclier épuisé.' : allDone ? 'Dérivée suprême !' : win ? collisions ? 'Objectif atteint.' : grade : 'Ajuste ta trajectoire.'}</h3><p>${dead ? 'Retour au premier niveau du monde avec trois vies et de nouvelles variations. Tes records d’étoiles sont conservés.' : allDone ? `Les ${TOTAL_LEVELS} défis sont réussis. Reviens chercher les trois étoiles ou explore le laboratoire.` : win ? `${centering} ${collisions ? 'Collision : une vie perdue, trois étoiles impossibles.' : practice ? 'Le laboratoire ne valide pas la campagne.' : !objectiveMet ? 'Une étoile pour la cible touchée. Cherche une tangente horizontale pour en gagner davantage.' : after > before ? 'Un nouveau succès est débloqué !' : save.runs[level.world].next === 12 ? 'Monde terminé ! Le suivant est ouvert.' : precision < .8 ? 'Vise le centre pour améliorer tes étoiles.' : 'Un rayon au plus près du centre de chaque cible.'}` : `${elapsed >= level.seconds && level.seconds > 0 ? 'Le temps est écoulé.' : 'Les tirs sont épuisés.'} ${collisionAlreadyCharged ? 'La collision a coûté une vie.' : 'Une vie perdue.'} Il reste ${save.runs[level.world].lives} vie${save.runs[level.world].lives > 1 ? 's' : ''}.`}</p><div class="result-buttons"><button class="primary-button" id="result-next">${dead ? 'Recommencer le monde ↻' : win ? practice ? 'Nouvelle variation ↗' : allDone ? 'Rejouer le monde ↻' : save.runs[level.world].next === 12 && level.world < WORLDS.length - 1 ? 'Monde suivant →' : 'Continuer →' : 'Réessayer ↻'}</button><button class="secondary-button" id="result-replay">${dead ? 'Laboratoire libre' : win ? 'Rejouer' : 'Comprendre la règle'}</button></div>${win && !practice ? `<p class="mini">Objectif : ≤ ${level.par} tirs · ★★★ : plein centre, sans collision</p>` : ''}`;
+    $('#result').dataset.outcome = win ? 'win' : 'fail';
     $('#result').hidden = false;
     $('#result-next').addEventListener('click', () => {
         if (dead || allDone) {
@@ -237,7 +227,9 @@ function finish(win, double = false, collisionAlreadyCharged = false) {
     else
         startLevel(level.id, variant); });
     if (win)
-        playTone('win');
+        sounds.play(level.targets.some(t => t.boss) ? 'boss' : 'win');
+    else if (!collisionAlreadyCharged)
+        sounds.play('miss');
     requestDraw();
 }
 function shoot(a) {
@@ -262,8 +254,8 @@ function shoot(a) {
             persist();
         }
     }
-    shot = { result, at: performance.now() };
-    playTone('shot');
+    shot = { result, at: performance.now(), impacts: result.hits.map(id => { const t = level.targets.find(t => t.id === id); return movingTarget(level, t, targetTime, damage.get(id) ?? 0); }) };
+    sounds.play('shot');
     updateControls();
     requestDraw();
     const m = result.slope, b = result.origin.y - m * a;
@@ -292,8 +284,12 @@ function shoot(a) {
         }
         hint = null;
         busy = false;
-        if (result.hits.length)
-            playTone('hit');
+        if (collision)
+            sounds.play('collision');
+        else if (result.hits.length && destroyed.size !== level.targets.length)
+            sounds.play(result.impacts.every(i => i.precision >= .8) ? 'perfect' : 'hit');
+        else if (!result.hits.length && (practice || used < level.shots))
+            sounds.play('miss');
         const blocked = result.beams.some(b => b.blocked);
         if (!practice && save.runs[level.world].lives === 0)
             finish(false, false, true);
@@ -379,7 +375,7 @@ function openPractice() {
         startLevel(save.lastLevel);
         return;
     }
-    show('Le laboratoire libre.', `<p>Explore les ${WORLDS.length} mondes sans limite de tirs, de vies ni de temps. Les solutions y sont libres et ne valident pas la campagne. Quitter un essai de campagne déjà commencé coûte une vie.</p><div class="practice-worlds">${WORLDS.map((w, i) => `<button data-practice="${i}"><span>${w.icon}</span>${w.name} ↗</button>`).join('')}</div>`);
+    show('Le laboratoire libre.', `<p>Explore les ${WORLDS.length} mondes sans limite de tirs, de vies ni de temps. Les solutions y sont libres et ne valident pas la campagne. Quitter un essai de campagne déjà commencé coûte une vie.</p><div class="practice-worlds">${WORLDS.map((w, i) => `<button data-practice="${i}"><span>${worldIcon(i)}</span>${w.name} ↗</button>`).join('')}</div>`);
     for (const b of document.querySelectorAll('[data-practice]'))
         b.addEventListener('click', () => { practice = true; closeModal(); startLevel(Number(b.dataset.practice) * 12); });
 }
@@ -397,8 +393,15 @@ function openAchievements() {
 }
 $('#achievements').addEventListener('click', openAchievements);
 function openSettings() {
-    show('À ta façon.', `<label class="setting-row">Effets sonores<input type="checkbox" id="setting-sound" ${save.sound ? 'checked' : ''}></label><label class="setting-row">Réduire les animations<input type="checkbox" id="setting-motion" ${save.reducedMotion ? 'checked' : ''}></label><p>La progression est stockée uniquement sur cet appareil. Effacer les données du navigateur l’efface aussi. Les paramètres d’accessibilité de ton appareil sont respectés.</p><button class="danger-button" id="reset">Effacer ma progression</button>`);
-    $('#setting-sound').addEventListener('change', event => { save.sound = event.target.checked; updateSound(); persist(); });
+    show('À ta façon.', `<label class="setting-row">Effets sonores<input type="checkbox" id="setting-sound" ${save.sound ? 'checked' : ''}></label><label class="setting-row">Réduire les animations<input type="checkbox" id="setting-motion" ${save.reducedMotion ? 'checked' : ''}></label><button class="secondary-button sound-preview" id="sound-preview">${icon('sound')} Écouter les nouveaux sons</button><p>La progression est stockée uniquement sur cet appareil. Effacer les données du navigateur l’efface aussi. Les paramètres d’accessibilité de ton appareil sont respectés.</p><button class="danger-button" id="reset">Effacer ma progression</button>`);
+    $('#setting-sound').addEventListener('change', event => { save.sound = event.target.checked; if (save.sound)
+        sounds.play('tap');
+    else
+        sounds.stop(); updateSound(); persist(); });
+    $('#sound-preview').addEventListener('click', () => { if (!save.sound) {
+        notify('Active les effets sonores pour les écouter.');
+        return;
+    } sounds.play('win'); });
     $('#setting-motion').addEventListener('change', event => { save.reducedMotion = event.target.checked; document.body.classList.toggle('reduced-motion', save.reducedMotion); persist(); requestDraw(); });
     $('#reset').addEventListener('click', () => {
         show('Repartir de zéro ?', '<p>Les étoiles et les succès de cet appareil seront effacés.</p><button class="danger-button" id="confirm-reset">Oui, effacer ma progression</button>');
@@ -423,6 +426,7 @@ function help() {
     $('#menu-settings').addEventListener('click', openSettings);
 }
 $('#help').addEventListener('click', help);
+sounds.preload();
 setupInstallation($('#install'), show, notify);
 function requestDraw() { if (!raf)
     raf = requestAnimationFrame(frame); }

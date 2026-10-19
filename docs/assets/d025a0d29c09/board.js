@@ -68,13 +68,22 @@ export class Board {
         this.background.height = this.canvas.height;
         const c = this.background.getContext('2d');
         c.scale(this.ratio, this.ratio);
-        c.fillStyle = '#12212b';
+        c.fillStyle = '#0c172d';
         c.fillRect(0, 0, this.w, this.h);
         const gradient = c.createRadialGradient(this.center.x, this.center.y, 0, this.center.x, this.center.y, this.w * .65);
-        gradient.addColorStop(0, '#1b35403b');
-        gradient.addColorStop(1, '#12212b00');
+        gradient.addColorStop(0, '#29486f70');
+        gradient.addColorStop(.65, '#17334b28');
+        gradient.addColorStop(1, '#0b142900');
         c.fillStyle = gradient;
         c.fillRect(0, 0, this.w, this.h);
+        // Deterministic stars are cached with the grid, so no extra animation is needed.
+        for (let i = 0; i < 38; i++) {
+            const x = ((i * 127 + 43) % 997) / 997 * this.w, y = ((i * 233 + 71) % 991) / 991 * this.h;
+            c.fillStyle = i % 5 === 0 ? '#aecfff38' : '#96b8e51b';
+            c.beginPath();
+            c.arc(x, y, i % 5 === 0 ? .85 : .5, 0, Math.PI * 2);
+            c.fill();
+        }
         const p = projection(this.getState().level, this.w, this.h);
         const low = { x: this.screen({ x: BOUNDS.left, y: 0 }).x, y: this.h - p.bottom };
         const high = { x: this.screen({ x: BOUNDS.right, y: 0 }).x, y: p.top };
@@ -86,7 +95,7 @@ export class Board {
         c.lineWidth = 1;
         for (let x = -5; x <= 5; x++) {
             const p = this.screen({ x, y: 0 });
-            c.strokeStyle = x === 0 ? '#536775' : '#263d48';
+            c.strokeStyle = x === 0 ? '#7794b591' : '#6685b025';
             c.beginPath();
             c.moveTo(p.x, high.y);
             c.lineTo(p.x, low.y);
@@ -100,7 +109,7 @@ export class Board {
         }
         for (let y = Math.ceil(minY); y <= Math.floor(maxY); y++) {
             const p = this.screen({ x: 0, y });
-            c.strokeStyle = y === 0 ? '#536775' : '#263d48';
+            c.strokeStyle = y === 0 ? '#7794b591' : '#6685b025';
             c.beginPath();
             c.moveTo(low.x, p.y);
             c.lineTo(high.x, p.y);
@@ -161,16 +170,34 @@ export class Board {
             else
                 c.lineTo(p.x, p.y);
         }
-        c.strokeStyle = '#69e6dc';
-        c.lineWidth = 2.5;
         c.lineCap = 'round';
         c.lineJoin = 'round';
+        c.strokeStyle = '#75e8ed10';
+        c.lineWidth = 12;
+        c.stroke();
+        c.strokeStyle = '#75e8ed20';
+        c.lineWidth = 6;
+        c.stroke();
+        const curveGlow = c.createLinearGradient(0, 0, this.w, this.h);
+        curveGlow.addColorStop(0, '#9bb9ff');
+        curveGlow.addColorStop(.45, '#a4fff0');
+        curveGlow.addColorStop(1, '#65ddec');
+        c.strokeStyle = curveGlow;
+        c.lineWidth = 2.7;
         c.stroke();
         for (const o of level.obstacles) {
             const p = this.screen(movingObstacle(o, state.time)), r = o.radius * this.scale;
-            c.fillStyle = '#ff707b1e';
-            c.strokeStyle = '#ff7b84';
-            c.lineWidth = 1.5;
+            const fill = c.createRadialGradient(p.x - r * .3, p.y - r * .4, 0, p.x, p.y, r);
+            fill.addColorStop(0, '#773950');
+            fill.addColorStop(1, '#321e3d');
+            c.strokeStyle = '#ff7c9c18';
+            c.lineWidth = 5;
+            c.beginPath();
+            c.arc(p.x, p.y, r + 1, 0, Math.PI * 2);
+            c.stroke();
+            c.fillStyle = fill;
+            c.strokeStyle = '#ff91a8';
+            c.lineWidth = 1.3;
             c.beginPath();
             c.arc(p.x, p.y, r, 0, Math.PI * 2);
             c.fill();
@@ -203,17 +230,24 @@ export class Board {
                 c.stroke();
                 continue;
             }
-            c.fillStyle = '#d5fb6812';
-            c.strokeStyle = '#d5fb6855';
-            c.lineWidth = 1;
+            const halo = c.createRadialGradient(p.x, p.y, r, p.x, p.y, r + 9);
+            halo.addColorStop(0, t.boss ? '#ff86ce26' : '#e5f89c22');
+            halo.addColorStop(1, '#00000000');
+            c.fillStyle = halo;
             c.beginPath();
-            c.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
+            c.arc(p.x, p.y, r + 9, 0, Math.PI * 2);
             c.fill();
-            c.stroke();
-            c.fillStyle = t.boss ? '#ff86ce' : '#d5fb68';
+            const orb = c.createRadialGradient(p.x - r * .3, p.y - r * .35, r * .05, p.x, p.y, r);
+            orb.addColorStop(0, t.boss ? '#ffe5f7' : '#fffbd9');
+            orb.addColorStop(.45, t.boss ? '#ff9bdb' : '#eff8a3');
+            orb.addColorStop(1, t.boss ? '#ce539b' : '#a5cf68');
+            c.fillStyle = orb;
             c.beginPath();
             c.arc(p.x, p.y, r, 0, Math.PI * 2);
             c.fill();
+            c.strokeStyle = t.boss ? '#ffd0f0cc' : '#faffd2cc';
+            c.lineWidth = .8;
+            c.stroke();
             if (resistance(t) > 1) {
                 c.strokeStyle = t.boss ? '#ff86ce' : '#d5fb68';
                 c.lineWidth = t.boss ? 2 : 1;
@@ -221,9 +255,14 @@ export class Board {
                 c.arc(p.x, p.y, r + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (resistance(t) - taken) / resistance(t));
                 c.stroke();
             }
-            c.fillStyle = '#192c27';
+            c.strokeStyle = t.boss ? '#6f2752' : '#63854b';
+            c.lineWidth = .8;
             c.beginPath();
-            c.arc(p.x, p.y, 2, 0, Math.PI * 2);
+            c.arc(p.x, p.y, Math.max(1.6, r * .28), 0, Math.PI * 2);
+            c.stroke();
+            c.fillStyle = '#ffffffdc';
+            c.beginPath();
+            c.arc(p.x, p.y, 1.1, 0, Math.PI * 2);
             c.fill();
             c.fillStyle = '#baca92';
             c.font = '8px ui-monospace,monospace';
@@ -273,6 +312,21 @@ export class Board {
                 c.beginPath();
                 c.arc(p.x, p.y, 6 + age / 35, 0, Math.PI * 2);
                 c.stroke();
+            }
+            if (!state.reducedMotion && age > 110 && age < 750) {
+                const progress = (age - 110) / 640;
+                c.globalAlpha = (1 - progress) ** 2;
+                for (const impact of state.shot.impacts) {
+                    const center = this.screen(impact);
+                    for (let i = 0; i < 10; i++) {
+                        const angle = i * Math.PI / 5 + .2, distance = 5 + 23 * progress;
+                        const x = center.x + Math.cos(angle) * distance, y = center.y + Math.sin(angle) * distance;
+                        c.fillStyle = i % 2 ? '#e7f9ad' : '#b7fff1';
+                        c.beginPath();
+                        c.arc(x, y, 1.4 * (1 - progress) + .3, 0, Math.PI * 2);
+                        c.fill();
+                    }
+                }
             }
             c.globalAlpha = 1;
         }

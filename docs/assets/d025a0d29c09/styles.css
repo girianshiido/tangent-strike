@@ -49,3 +49,54 @@ html,body{height:100svh;overflow:hidden}body{display:flex;flex-direction:column}
 /* Feedback must not resize the plot when a shot adds an explanation. */
 @media(min-width:761px) and (min-height:501px){.feedback{flex:0 0 88px;min-height:88px}}
 @media(min-width:761px) and (min-height:501px) and (max-height:700px){.feedback{flex-basis:62px;min-height:62px;padding:8px 0}.feedback p{font-size:9px;line-height:1.5}.feedback-symbol{font-size:20px}}
+
+/* Observatoire — cosmetic layers keep the tested, fixed playing-surface geometry. */
+:root{--lime:#dcfa8a;--cyan:#79eee2;--muted:#91a3bc;--line:#a3bcf024;--panel:#131f39;background:#090f21;color:#edf4ff}
+body{background:radial-gradient(ellipse at 12% 5%,#23366255,transparent 52%),radial-gradient(ellipse at 90% 90%,#26316b40,transparent 55%),#090f21}
+button,a{transition:background-color .18s,border-color .18s,box-shadow .18s,color .18s}
+button:active:not(:disabled){filter:brightness(1.14)}
+button:focus-visible,a:focus-visible,canvas:focus-visible{outline-color:var(--cyan)}
+.topbar{background:linear-gradient(110deg,#101c35eb,#0c1429eb);border-bottom-color:#adc9ff1e;box-shadow:0 8px 36px #02071626}
+.brand{letter-spacing:-1px}.brand-icon{transform:none;display:grid;place-items:center;width:1.15em;height:1.15em;border-radius:27%;background:linear-gradient(145deg,#b6ffe8,#73dfee 70%,#9eafff);color:#122b3b;box-shadow:0 0 22px #74e7dc24;font-size:42px}
+.brand-icon svg{width:78%;height:78%;display:block}.brand-strike{color:#9eefd9}.brand-dot{color:#e6ffaf}.brand-tagline{color:#7891b5;border-color:#b7d5ff26}
+.connection{color:#96b4bd}.connection i,.bottom-note i{box-shadow:0 0 8px #a6f8bf70}
+.install-button{border-color:#a2ddad66;background:linear-gradient(135deg,#d8ffb51c,#79ead00c);box-shadow:inset 0 1px #e1ffc512;color:#dfffc1;border-radius:10px}
+.install-button:hover{background:#cbffb723;box-shadow:0 0 20px #b8ffac16}
+.icon-button{background:#0d1a304d;border-color:#aecaff30;color:#aec3e1}.icon-button svg{width:17px;height:17px;vertical-align:middle}.icon-button[aria-pressed="true"]{color:#b5e9db;border-color:#86cfbf55}
+.sidebar h1{color:#f1f5ff}.sidebar h1 span{color:#9eeeda}.eyebrow{color:#829bc1}.campaign-count{color:#c4d0e9}
+.progress-track{height:4px;background:#2b3c5d80;box-shadow:inset 0 1px 3px #0003}.progress-track span{background:linear-gradient(90deg,#6fd9dd,#d9fa92);box-shadow:0 0 10px #7be5db40}
+.world-card{border-radius:12px;border-color:#b3cfff0d;background:linear-gradient(120deg,#b2c9ff06,transparent);overflow:hidden}
+.world-card.active{border-color:color-mix(in srgb,var(--world) 50%,transparent);background:linear-gradient(110deg,color-mix(in srgb,var(--world) 12%,#101c33),#111e36);box-shadow:inset 0 1px #ffffff0d,0 5px 18px #0002}
+.world-card.active:before{box-shadow:0 0 14px var(--world);border-radius:3px}
+.world-icon{background:linear-gradient(145deg,#b4d6ff10,#ffffff03);border:1px solid #c1d9ff12;border-radius:11px}.world-icon svg{width:25px;height:25px;display:block}.world-card.active .world-icon{background:color-mix(in srgb,var(--world) 12%,transparent);border-color:color-mix(in srgb,var(--world) 20%,transparent)}
+.world-card strong{color:#c9d7ed;font-weight:600}.world-card small{color:#8198ba}.world-card.active strong{color:#f2f6ff}.world-card.locked{opacity:.48}
+.practice-button{border-radius:12px;background:linear-gradient(135deg,#203451,#15243e);border-color:#8cbbdf3d;box-shadow:inset 0 1px #b6ddff0a}.practice-button>span:first-child svg{width:25px;height:25px;display:block}
+.achievements-button{color:#d6e4fb}.save-caption{color:#7893ac}.sidebar-bottom{border-color:#93b7e220}
+.level-heading h2{color:#f0f5ff;text-shadow:0 2px 18px #acd4ff10;letter-spacing:-.8px}.level-heading .eyebrow{color:var(--world)}
+.level-number strong{color:#e4edff}.level-number strong span{color:#7e97ba}.health{gap:5px;color:#ff91ad;text-shadow:0 0 10px #ff74943b}.health .lost{color:#46516c;text-shadow:none}
+.level-chip{border-radius:7px;background:linear-gradient(#1c2a45,#15213a);border-color:#93b5e229;color:#91a6c7;box-shadow:inset 0 1px #c5deff08}
+.level-chip.current{background:linear-gradient(140deg,color-mix(in srgb,var(--world) 80%,white),var(--world));border-color:var(--world);color:#102437;box-shadow:0 3px 12px color-mix(in srgb,var(--world) 18%,transparent)}
+.level-chip.complete:not(.current){border-color:color-mix(in srgb,var(--world) 30%,transparent)}.level-chip.complete:after{content:'✦';font-size:8px;bottom:-5px}
+.mission-icon{border-radius:11px;background:linear-gradient(145deg,#d9fd9414,#81e8df09);border-color:#d1f39b24;box-shadow:inset 0 1px #f0ffca0a}.mission-icon svg{height:66%;width:66%;display:block}.mission strong{color:#dce7fa}.mission>div>span{color:#8ca3c2}.mode-badge{background:#131e37;border-color:#7b9fce33;color:#829dc2;border-radius:5px}
+.arena{background:#0d1830;border-color:#789ecf52;border-radius:18px;box-shadow:inset 0 1px #badcff16,0 12px 36px #02061455,0 0 30px #7de9dc04}
+.arena:before{background:linear-gradient(#1b31504d,transparent);height:90px}.arena-top{gap:8px}.function{background:#101d35ed;color:#d6e9ff;border:1px solid #adcdff19;border-radius:7px;box-shadow:0 3px 12px #030b2026}
+.direction-badge{color:#c6e7b4;background:#b3f2980a;border-color:#ccf8aa29;border-radius:7px}.arena-bottom{color:#7f9bbd}.legend-curve{background:#7fe9ef;box-shadow:0 0 6px #7fe9ef44}.legend-target{background:#e8f6a5;box-shadow:0 0 7px #effdb844}.legend-obstacle{background:#ff829a}
+.first-tip{color:#d9ffb2;filter:drop-shadow(0 2px 3px #070e22)}.first-tip span{background:#0b1834e8;border:1px solid #b4f2bd30;border-radius:7px;padding:5px 7px;margin-left:14px;box-shadow:0 4px 12px #02091c40}
+.control-bar{border-color:#a7caff1c}.control-label{color:#8199bd}.energy-cell{background:linear-gradient(#efffc5,#b2e995);border:1px solid #e5ffc344;border-radius:3px;box-shadow:0 0 9px #a5ed9d24}.energy-cell.spent{background:#1e2b47;border-color:#829ec522;box-shadow:inset 0 1px 3px #03081755}
+.quiet-button,.retry-button{background:linear-gradient(#1b2c48,#15233d);border-color:#a4c6ef33;color:#bed3ee;border-radius:9px;box-shadow:inset 0 1px #bedaff0a}.retry-button svg{display:block;width:17px;height:17px;margin:auto}
+.direction-control>div{border:1px solid #9bbce52e;border-radius:10px;padding:2px;background:#08142c;gap:3px}.direction-control button{border-radius:7px;border-color:transparent;background:transparent;color:#8da6c8}.direction-control button.selected{background:linear-gradient(135deg,#d4f7a4,#9cddb9);color:#14323e;box-shadow:0 2px 8px #8cf7b51a}
+.timer{color:#7febee}.timer.urgent{color:#ff91a6}.feedback{color:#a9bfd9}.feedback-symbol{color:var(--world);text-shadow:0 0 16px color-mix(in srgb,var(--world) 22%,transparent)}.feedback p{color:#96adcd}.feedback strong{color:#dbecff}.bottom-note{border-color:#9bbdeb20}.bottom-note>span{color:#6f88ae}.bottom-note button{color:#a1b9d8}
+.result{background:radial-gradient(ellipse at 50% 30%,#244563bb,transparent 70%),#0b1630f0;backdrop-filter:blur(7px)}
+.result[data-outcome="fail"]{background:radial-gradient(ellipse at 50% 30%,#452f53aa,transparent 70%),#10162df0}
+.result-mark{color:#d6fbb6;filter:drop-shadow(0 0 18px #b4ffd448)}.result-mark svg{width:1em;height:1em;display:block}.result h3{color:#f4f8ff;letter-spacing:-.6px}.result p{color:#a9bfde}.stars{color:#ffe4a0;text-shadow:0 0 18px #ffdf9740}.stars .empty{color:#35425e;text-shadow:none}
+.primary-button{border-radius:11px;background:linear-gradient(135deg,#dcffb1,#a4e7c6);color:#132b39;border:1px solid #e9ffd780;box-shadow:0 5px 20px #b2ffc018,inset 0 1px #fff7}
+.secondary-button{border-radius:10px;background:linear-gradient(#233752,#192b46);border-color:#a9cbee3d;color:#d7e7ff;box-shadow:inset 0 1px #c6e1ff0a}
+dialog{background:radial-gradient(ellipse at 0 0,#213959,#101c34 75%);border-color:#92b9ed4d;border-radius:20px;box-shadow:0 30px 90px #020514aa,inset 0 1px #c4e1ff10}dialog::backdrop{background:#050b1ed4;backdrop-filter:blur(8px)}dialog h2{color:#f2f6ff}dialog p,dialog li{color:#a6bddb}dialog strong{color:#eaf4ff}dialog .formula-card{border-color:#96d6ce3a;background:#7fe5d20b;color:#bcf7dd;border-radius:10px}
+.achievement{border-color:#a3c7ff1b}.achievement .badge{color:#52688b}.achievement.done .badge{color:#f5dd9a;filter:drop-shadow(0 0 9px #ffe18a25)}.achievement strong{color:#dceaff}.achievement-progress{background:#2b3b5880}.achievement-progress i{background:linear-gradient(90deg,#8ee8d7,#d5f4ab)}.achievement-filters button{border-radius:8px;border-color:#a3c8ef2c;background:#14253f}.achievement-filters button.selected{color:#d8f8c2;background:#b0f1b20e;border-color:#b7f2b458}.achievement .count{color:#8ca7cb}
+.setting-row{border-color:#a2c6f126}.practice-worlds button{border-radius:10px;border-color:#a3c8ed2b;background:linear-gradient(120deg,#20364f,#14253e)}.practice-worlds button>span svg{width:21px;height:21px;vertical-align:middle}.key{background:#2c4060;color:#e4f2ff}.danger-button{border-radius:9px;border-color:#bf7b9860;color:#ffadc0;background:#ff8caa06}.sound-preview{margin-top:16px;display:flex;align-items:center;gap:10px}
+.toast{border:1px solid #ebffd7aa;background:linear-gradient(130deg,#deffbc,#a7ebcf);border-radius:12px;box-shadow:0 8px 40px #02071988;color:#17363e}
+.sound-preview svg{width:18px;height:18px;flex-shrink:0}
+.page-footer{color:#627da5;border-color:#a1c3f01b}.page-footer button{color:#8ca6ca}
+@media(max-width:760px){.brand-icon{font-size:30px}.world-card{border-radius:9px}.world-icon{background:none!important;border:0!important;border-radius:5px}.world-icon svg{width:18px;height:18px}.arena{border-radius:13px;box-shadow:inset 0 1px #badcff13,0 6px 20px #02061444}.level-chip{border-radius:5px}.control-bar{gap:8px}.direction-control>div{padding:1px;border-radius:8px}.direction-control button{width:28px;height:29px}.first-tip span{padding:4px 6px}.result{backdrop-filter:none}.install-button{border-radius:8px}}
+@media(max-width:760px) and (min-height:750px){.world-icon svg{width:22px;height:22px}.direction-control button{width:34px;height:34px}}
+@media(max-width:1000px) and (max-height:500px) and (orientation:landscape){.brand-icon{font-size:26px}.world-icon svg{width:17px;height:17px}.direction-control button{width:25px;height:25px}.direction-control>div{padding:0}.arena{border-radius:11px}.first-tip span{padding:2px 4px}.result-mark{display:none}}

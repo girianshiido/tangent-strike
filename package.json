@@ -9,7 +9,9 @@
     "test": "tsc && node --test tests/*.test.mjs",
     "dev": "node scripts/serve.mjs",
     "qa": "node scripts/browser-qa.mjs",
-    "qa:render": "node scripts/render-qa.mjs"
+    "qa:render": "node scripts/render-qa.mjs",
+    "qa:audio": "node scripts/audio-qa.mjs",
+    "sounds": "python3 scripts/create-sounds.py"
   },
   "devDependencies": { "typescript": "5.9.3", "playwright": "1.62.1" }
 }

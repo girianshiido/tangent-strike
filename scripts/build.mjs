@@ -5,10 +5,11 @@ await mkdir('docs/assets', {recursive:true});
 // Every module gets a new URL together, so an older installed worker cannot mix releases.
 const clientHash = createHash('sha256');
 for (const f of (await readdir('.build')).sort()) {clientHash.update(f);clientHash.update(await readFile(`.build/${f}`));}
-clientHash.update(await readFile('src/styles.css'));
+const styles = (await readFile('src/styles.css', 'utf8')) + '\n' + (await readFile('src/polish.css', 'utf8'));
+clientHash.update(styles);
 const clientVersion = clientHash.digest('hex').slice(0, 12);
 await cp('.build', `docs/assets/${clientVersion}`, {recursive:true});
-await cp('src/styles.css', `docs/assets/${clientVersion}/styles.css`);
+await writeFile(`docs/assets/${clientVersion}/styles.css`, styles);
 const html = (await readFile('index.html', 'utf8')).replaceAll('./assets/', `./assets/${clientVersion}/`).replace('</head>', `  <meta name="tangent-client" content="${clientVersion}">\n</head>`);
 await writeFile('docs/index.html', html);
 await cp('public', 'docs', {recursive:true});
