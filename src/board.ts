@@ -15,10 +15,18 @@ export class Board {
   resize() {
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    this.w = rect.width; this.h = rect.height; this.ratio = Math.min(2, window.devicePixelRatio || 1);
-    this.canvas.width = Math.round(this.w * this.ratio); this.canvas.height = Math.round(this.h * this.ratio);
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    if (rect.width === this.w && rect.height === this.h && ratio === this.ratio) return;
+    this.w = rect.width; this.h = rect.height; this.ratio = ratio;
+    const width = Math.round(this.w * this.ratio), height = Math.round(this.h * this.ratio);
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
+    this.previousLevel = this.getState().level;
     this.updateProjection();
-    this.drawBackground(); this.onResize();
+    this.drawBackground();
+    // ResizeObserver runs after animation callbacks, just before presentation.
+    // Resizing clears the bitmap: repaint now rather than exposing a blank frame.
+    this.draw(performance.now());this.onResize();
   }
   private updateProjection() {
     const p = projection(this.getState().level, this.w, this.h);

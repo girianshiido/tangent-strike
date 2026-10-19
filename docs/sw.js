@@ -1,7 +1,7 @@
-// TANGENT STRIKE — atomic offline shell 37fa7c0d8960
+// TANGENT STRIKE — atomic offline shell f4e1132332f2
 const PREFIX = 'tangent-strike:' + self.registration.scope + ':';
-const CACHE = PREFIX + '37fa7c0d8960';
-const FILES = ["./","./assets/f7d9e7006b31/board.js","./assets/f7d9e7006b31/engine.js","./assets/f7d9e7006b31/install.js","./assets/f7d9e7006b31/main.js","./assets/f7d9e7006b31/storage.js","./assets/f7d9e7006b31/styles.css","./icons/apple-touch-icon.png","./icons/icon-192.png","./icons/icon-512.png","./icons/icon.svg","./icons/maskable-512.png","./index.html","./manifest.webmanifest"];
+const CACHE = PREFIX + 'f4e1132332f2';
+const FILES = ["./","./assets/7b43aa839a6d/board.js","./assets/7b43aa839a6d/engine.js","./assets/7b43aa839a6d/install.js","./assets/7b43aa839a6d/main.js","./assets/7b43aa839a6d/storage.js","./assets/7b43aa839a6d/styles.css","./icons/apple-touch-icon.png","./icons/icon-192.png","./icons/icon-512.png","./icons/icon.svg","./icons/maskable-512.png","./index.html","./manifest.webmanifest"];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES)).then(() => self.skipWaiting()));
 });
