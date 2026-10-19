@@ -93,7 +93,7 @@ export function makeLevel(id: number, variant = 0): Level {
   }
   const titles = world === 0 ? ['Premier contact', 'Trouve le sommet', 'Une autre courbe', 'Le creux de la vague', 'Courbe en W', 'Au sommet de l’onde', 'Cap à droite', 'Cap à gauche', 'À toi de choisir', 'Le calme sans sommet', 'Plusieurs chemins', 'L’équilibre parfait'] : ['Prends la tangente', 'Cap à droite', 'Retour à gauche', 'Choisis ton sens', 'Lis la courbe', 'Le bon angle', 'Change de perspective', 'Une ligne, un choix', 'Précision lumineuse', 'Le détour juste', 'L’instant décisif', 'Le dernier rayon'];
   return { id, world, number, title: titles[number], curve: c, solution, solutionDirection: direction, rule, targets, obstacles,
-    shots: world >= 2 ? 2 : 3, seconds: 0, par: 1,
+    shots: 3, seconds: 0, par: 1,
     plan: [{a: solution, direction, targets: targets.map(t => t.id)}],
     instruction: world === 0 ? (number === 9 || number === 11 ? 'Trouve une tangente horizontale, même sans extremum.' : 'Touche la courbe là où la tangente est horizontale.') : world === 2 ? 'Détruis les deux cibles avec une seule tangente.' : world >= 3 ? 'Atteins les cibles : les obstacles rouges arrêtent le rayon.' : 'Choisis le point dont la tangente atteint la cible.' };
 }
