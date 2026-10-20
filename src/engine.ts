@@ -1,7 +1,8 @@
 export type Direction = 'both' | 'left' | 'right';
 export type Rule = Direction | 'choose';
 export interface Point { x: number; y: number }
-export interface Curve { kind: 'polynomial' | 'sine' | 'cosine'; coefficients: number[]; h: number; k: number; scale: number; label: string }
+export interface Parametric { shape: 'ellipse' | 'eight' | 'spiral' | 'petal'; rx: number; ry: number; rotation: number; orientation: 1 | -1 }
+export interface Curve { kind: 'polynomial' | 'sine' | 'cosine' | 'parametric'; coefficients: number[]; h: number; k: number; scale: number; label: string; param?: Parametric }
 export interface TargetStage extends Point { anchor: number }
 export interface Target extends Point { id: number; radius: number; motion: number; phase: number; anchor?: number; hp?: number; boss?: boolean; stages?: TargetStage[] }
 export interface Obstacle extends Point { radius: number; motionX?: number; motionY?: number; phase?: number }
@@ -21,21 +22,51 @@ export const WORLDS = [
   { name: 'Laser Master', subtitle: 'Deux cibles, plusieurs chemins.', icon: '✦', color: '#ff86ce', lesson: 'Certaines cibles demandent deux tangentes. D’autres, mobiles, peuvent s’aligner sur une même tangente à un instant précis : attends ce rendez-vous ou tire deux fois.' },
   { name: 'Trajectoires croisées', subtitle: 'Trois cibles. Deux ou trois tangentes.', icon: '⋈', color: '#8fbbff', lesson: 'Répartis tes tirs : deux cibles peuvent partager une tangente tandis que la troisième en demande une autre. Certains défis imposent trois trajectoires distinctes.' },
   { name: 'Champ instable', subtitle: 'Observe. Attends. Traverse.', icon: '⟁', color: '#ff8c9c', lesson: 'Les obstacles mobiles traversent les trajectoires. Attends qu’un passage se libère avant de tirer : les collisions sont calculées à l’instant du tir.' },
+  { name: 'Orbites', subtitle: 'Suis le fil des courbes paramétrées.', icon: '◌', color: '#b7a8ff', lesson: 'Le point M(t) = (x(t), y(t)) parcourt la courbe quand t augmente, dans le sens des petites flèches. Le vecteur (x′(t), y′(t)) dirige la tangente : → suit le parcours, ← le remonte. Le laser peut donc partir vers la gauche de l’écran en choisissant →. Une tangente verticale est parfaitement possible.' },
 ] as const;
 export const LEVELS_PER_WORLD = 12;
 export const TOTAL_LEVELS = WORLDS.length * LEVELS_PER_WORLD;
 export function value(c: Curve, x: number): number {
+  if (c.kind === 'parametric') return curvePoint(c, x).y;
   const u = x - c.h;
   const v = c.kind === 'sine' ? Math.sin(u) : c.kind === 'cosine' ? Math.cos(u) : c.coefficients.reduceRight((a, b) => a * u + b, 0);
   return c.scale * v + c.k;
 }
 export function derivative(c: Curve, x: number): number {
+  if (c.kind === 'parametric') {const v = curveDerivative(c, x);return Math.abs(v.x) < 1e-12 ? Infinity : v.y / v.x;}
   const u = x - c.h;
   if (c.kind === 'sine') return c.scale * Math.cos(u);
   if (c.kind === 'cosine') return -c.scale * Math.sin(u);
   return c.scale * c.coefficients.slice(1).map((a, i) => a * (i + 1)).reduceRight((a, b) => a * u + b, 0);
 }
-export function tangent(c: Curve, a: number, x: number): number { return value(c, a) + derivative(c, a) * (x - a); }
+export function tangent(c: Curve, a: number, x: number): number { const p = curvePoint(c, a);return p.y + derivative(c, a) * (x - p.x); }
+export function parameterRange(c: Curve): [number, number] { return c.kind === 'parametric' ? [0, c.param!.shape === 'spiral' ? 4 * Math.PI : 2 * Math.PI] : [-5.35, 5.35]; }
+export function advanceParameter(c: Curve, t: number, step: number): number {
+  const [min, max] = parameterRange(c), next = t + step;
+  return c.kind === 'parametric' && c.param!.shape !== 'spiral' ? min + ((next - min) % (max - min) + max - min) % (max - min) : Math.max(min, Math.min(max, next));
+}
+/** Position and velocity use t directly, never an inverse y=f(x) representation. */
+export function curvePoint(c: Curve, t: number): Point {
+  if (c.kind !== 'parametric') return {x: t, y: value(c, t)};
+  const p = c.param!, u = p.orientation * t, r = p.shape === 'spiral' ? .7 + .13 * t : p.shape === 'petal' ? 1 + .25 * Math.cos(3 * u) : 1;
+  const x = p.rx * (p.shape === 'eight' ? Math.sin(u) : r * Math.cos(u));
+  const y = p.ry * (p.shape === 'eight' ? Math.sin(2 * u) : r * Math.sin(u));
+  return {x: c.h + x * Math.cos(p.rotation) - y * Math.sin(p.rotation), y: c.k + x * Math.sin(p.rotation) + y * Math.cos(p.rotation)};
+}
+export function curveDerivative(c: Curve, t: number): Point {
+  if (c.kind !== 'parametric') return {x: 1, y: derivative(c, t)};
+  const p = c.param!, d = p.orientation, u = d * t;
+  const r = p.shape === 'spiral' ? .7 + .13 * t : p.shape === 'petal' ? 1 + .25 * Math.cos(3 * u) : 1;
+  const dr = p.shape === 'spiral' ? .13 : p.shape === 'petal' ? -.75 * Math.sin(3 * u) * d : 0;
+  const x = p.rx * (p.shape === 'eight' ? d * Math.cos(u) : dr * Math.cos(u) - r * Math.sin(u) * d);
+  const y = p.ry * (p.shape === 'eight' ? 2 * d * Math.cos(2 * u) : dr * Math.sin(u) + r * Math.cos(u) * d);
+  return {x: x * Math.cos(p.rotation) - y * Math.sin(p.rotation), y: x * Math.sin(p.rotation) + y * Math.cos(p.rotation)};
+}
+export function unitTangent(c: Curve, t: number): Point {
+  const v = curveDerivative(c, t), norm = Math.hypot(v.x, v.y);
+  if (norm < 1e-12) throw new RangeError('La tangente nécessite une vitesse non nulle');
+  return {x: v.x / norm, y: v.y / norm};
+}
 export function format(n: number, digits = 2): string { return Number(n.toFixed(digits)).toLocaleString('fr-FR').replace('-', '−'); }
 function shifted(h: number): string { return h === 0 ? 'x' : `(x ${h > 0 ? '−' : '+'} ${format(Math.abs(h))})`; }
 function curve(kind: number, h: number, k: number, invert: boolean): Curve {
@@ -56,6 +87,7 @@ function curve(kind: number, h: number, k: number, invert: boolean): Curve {
 export function makeLevel(id: number, variant = 0): Level {
   if (!Number.isInteger(id) || id < 0 || id >= TOTAL_LEVELS) throw new RangeError('Niveau inconnu');
   const world = Math.floor(id / LEVELS_PER_WORLD), number = id % LEVELS_PER_WORLD;
+  if (world === 7) return orbitLevel(id, variant);
   if (world >= 4) return advancedLevel(id, variant);
   const seed = number + variant * 7;
   const h = variant === 0 && number === 0 ? 0 : [-.75, 0, .75][seed % 3];
@@ -97,35 +129,102 @@ export function makeLevel(id: number, variant = 0): Level {
     plan: [{a: solution, direction, targets: targets.map(t => t.id)}],
     instruction: world === 0 ? (number === 9 || number === 11 ? 'Trouve une tangente horizontale, même sans extremum.' : 'Touche la courbe là où la tangente est horizontale.') : world === 2 ? 'Détruis les deux cibles avec une seule tangente.' : world >= 3 ? 'Atteins les cibles : les obstacles rouges arrêtent le rayon.' : 'Choisis le point dont la tangente atteint la cible.' };
 }
+function orbitLevel(id: number, variant: number): Level {
+  const number = id % 12, phase = number < 3 ? 0 : (variant % 5) * .12;
+  const shape: Parametric['shape'] = number < 5 ? 'ellipse' : number < 8 ? 'eight' : number < 10 ? 'spiral' : 'petal';
+  const orientation: 1 | -1 = number === 4 || variant % 2 ? -1 : 1;
+  const rx = number < 2 ? 2 : shape === 'ellipse' ? 2.4 : shape === 'eight' ? 2.35 : shape === 'spiral' ? 1.1 : 1.65;
+  const ry = number < 2 ? 2 : shape === 'ellipse' ? 1.35 : shape === 'eight' ? 1.5 : shape === 'spiral' ? .9 : 1.5;
+  const rotation = number === 3 ? Math.atan2(.6, .8) : 0;
+  const param: Parametric = {shape, rx, ry, rotation, orientation};
+  const u = orientation === 1 ? 't' : '−t', fx = shape === 'eight' ? `sin(${u})` : `cos(${u})`, fy = shape === 'eight' ? `sin(2${u === 't' ? 't' : '(−t)'})` : `sin(${u})`;
+  const radial = shape === 'spiral' || shape === 'petal';
+  const term = (a: number, f: string) => `${format(Math.abs(a))}${f}`;
+  const component = (a: number, f: string, b: number, g: string) => `${a < 0 ? '−' : ''}${term(a, f)}${Math.abs(b) < 1e-10 ? '' : ` ${b < 0 ? '−' : '+'} ${term(b, g)}`}`;
+  const prefix = radial ? `r(t) = ${shape === 'spiral' ? '0,7 + 0,13t' : '1 + 0,25 cos(3t)'} ; ` : '';
+  const c: Curve = {kind: 'parametric', coefficients: [], h: 0, k: 0, scale: 1, param, label: `${prefix}x(t) = ${component(rx * Math.cos(rotation), radial ? `r(t) ${fx}` : fx, -ry * Math.sin(rotation), fy)} ; y(t) = ${component(ry * Math.cos(rotation), radial ? `r(t) ${fy}` : fy, rx * Math.sin(rotation), fx)}`};
+  const rules: Rule[] = ['both', 'right', 'left', 'choose', 'right', 'both', 'right', 'left', 'right', 'choose', 'choose', 'choose'];
+  const rule = rules[number], chosen: Direction = rule === 'choose' ? number % 2 ? 'left' : 'right' : rule;
+  const anchors = [0, Math.PI / 2, Math.PI / 2, .75 * Math.PI, 0, Math.PI / 4, Math.PI / 2, 1.25 * Math.PI, 3 * Math.PI, 2.5 * Math.PI, .4 * Math.PI, 0];
+  const a = anchors[number] + phase;
+  const targets: Target[] = [], plan: PlannedShot[] = [];
+  function target(anchor: number, direction: Direction, distance: number): TargetStage {
+    const origin = curvePoint(c, anchor), v = unitTangent(c, anchor), sign = direction === 'left' ? -1 : 1;
+    return {x: origin.x + sign * v.x * distance, y: origin.y + sign * v.y * distance, anchor};
+  }
+  function add(anchor: number, direction: Direction, distance = 1.5, hp = 1) {
+    const t = {...target(anchor, direction, distance), id: targets.length, radius: number < 5 ? .26 : .23, motion: number >= 6 ? .13 : 0, phase: targets.length * Math.PI, hp};
+    targets.push(t);
+    for (let i = 0; i < hp; i++) plan.push({a: anchor, direction, targets: [t.id]});
+  }
+  if (number === 11) {
+    const angles = [phase, phase + Math.PI / 2, phase + Math.PI, phase + 3 * Math.PI / 2];
+    const stages = angles.map((angle, i) => target(angle, i % 2 ? 'left' : 'right', 1.3));
+    targets.push({...stages[0], id: 0, hp: 4, boss: true, stages, radius: .28, motion: .12, phase: 0});
+    angles.forEach((angle, stage) => plan.push({a: angle, direction: stage % 2 ? 'left' : 'right', targets: [0], stage}));
+  } else if (number === 3) {
+    add(a, chosen, 1.15);add(a, chosen, 1.95);
+    plan.splice(0, plan.length, {a, direction: chosen, targets: [0, 1]});
+  } else {
+    add(a, chosen, 1.5, number === 10 ? 2 : 1);
+    if (number === 7 || number === 9 || number === 10) add(a + Math.PI / 2, rule === 'left' ? 'left' : 'right');
+  }
+  const obstacles: Obstacle[] = [];
+  if (number >= 9) {
+    for (const side of [-1, 1]) {
+      const origin = curvePoint(c, a), v = unitTangent(c, a);
+      const o = {x: origin.x + v.x * .8 - v.y * side, y: origin.y + v.y * .8 + v.x * side, radius: .22, motionX: .12, motionY: .1, phase: side};
+      if (Math.abs(o.x) + .4 > 5.5 || Math.abs(o.y) + .4 > 4.7) continue;
+      if (plan.every(s => {const p = curvePoint(c, s.a), u = unitTangent(c, s.a);return Math.abs((o.x - p.x) * u.y - (o.y - p.y) * u.x) > .55;})) obstacles.push(o);
+    }
+  }
+  const names = ['Première orbite', 'Suis le parcours', 'À contre-sens', 'L’ellipse inclinée', 'L’autre rotation', 'La boucle en huit', 'La tangente verticale', 'Deux branches', 'La spirale', 'Deux tours de piste', 'L’orbite ondulée', 'Le gardien orbital'];
+  return {id, world: 7, number, title: names[number], curve: c, solution: plan[0].a, solutionDirection: plan[0].direction, rule, targets, obstacles, par: plan.length, plan, shots: Math.max(3, plan.length + 1), seconds: 0,
+    instruction: number === 11 ? 'Le gardien change d’orbite à chaque impact. Suis les flèches.' : number === 0 ? 'Touche le cercle : sa tangente peut être verticale.' : number === 3 ? 'Deux cibles sur une tangente. Choisis le sens du tir.' : number === 7 || number === 9 || number === 10 ? 'Répartis les impacts. → suit le parcours, ← le remonte.' : '→ suit les petites flèches ; ← va dans le sens inverse.'};
+}
 function advancedLevel(id: number, variant: number): Level {
   const world = Math.floor(id / 12), number = id % 12, seed = number + variant * 7;
   const h = [-.5, 0, .5][seed % 3], k = [-.4, 0, .4][(seed + 1) % 3];
-  const c = curve(0, h, k, false);
+  const varied = world === 4 && number >= 5 && number <= 10;
+  const kind = varied ? [1, 2, 0, 5, 3, 4][number - 5] : world === 4 ? [0, 0, 2, 3, 0, 0, 0, 0, 0, 0, 0, 2][number] : world === 5 ? [0, 0, 2, 1, 5, 3, 4, 2, 1, 5, 4, 3][number] : [2, 0, 5, 1, 4, 3, 2, 0, 5, 1, 4, 5][number];
+  const invert = world === 4 ? number === 1 || number === 4 || (varied && seed % 3 === 1) : seed % 4 === 1 || number === 7;
+  const c = curve(kind, h, k, invert);
   const rule: Rule = number % 4 === 0 ? 'both' : 'choose';
   const radius = Math.max(.165, .205 - (world - 4) * .012 - number * .001);
   let targets: Target[], plan: PlannedShot[], combination: PlannedShot | undefined;
-  const rendezvous = world === 4 ? number >= 4 : (world === 5 && number === 10) || (world === 6 && number % 4 === 0);
+  const rendezvous = world === 4 ? [4, 5, 8, 10].includes(number) : (world === 5 && number === 10) || (world === 6 && number % 4 === 0);
   const triple = world >= 5 && !rendezvous;
-  const mobile = rendezvous || (world >= 5 && number >= 6);
+  const mobile = rendezvous || (world === 4 && number === 7) || (world >= 5 && number >= 6);
   const directionFor = (a: number, x: number): Direction => rule === 'both' ? 'both' : x < a ? 'left' : 'right';
   function target(a: number, x: number, i: number): Target {
-    return {id: i, x, y: tangent(c, a, x), anchor: a, radius, motion: mobile ? .22 : 0, phase: i % 2 ? Math.PI : 0};
+    return {id: i, x, y: tangent(c, a, x), anchor: a, radius, motion: mobile ? varied ? .33 : .22 : 0, phase: i % 2 ? Math.PI : 0};
   }
   if (rendezvous) {
-    // Each target travels along its own tangent, and both cross the common tangent
-    // at t = nπ/0.85. Thus two individual shots always work; one can work by timing.
-    const a = h, anchors = world >= 5 && number >= 8 ? [h - 3, h + 1.5, h + 3] : [h - 3, h + 3];
-    targets = anchors.map((anchor, i) => target(anchor, (a + anchor) / 2, i));
+    // Each target travels along its own tangent, and they cross the common tangent
+    // at t = nπ/0.85. Individual shots work; timing can combine several impacts.
+    const oblique = varied || world >= 5, count = world >= 5 && number >= 8 ? 3 : 2;
+    const a = oblique ? h + (number === 8 ? -.9 : number === 10 ? 1.6 : 1.1) : h;
+    let anchors = world >= 5 && number >= 8 ? [h - 3, h + 1.5, h + 3] : [h - 3, h + 3];
+    if (oblique) {
+      const candidates = Array.from({length: 33}, (_, i) => -3.2 + i * .2 + h).filter(anchor => Math.abs(anchor - a) > .65).map(anchor => {
+        const m = derivative(c, a), n = derivative(c, anchor), x = (value(c, anchor) - n * anchor - value(c, a) + m * a) / (m - n);
+        return {anchor, x, y: tangent(c, a, x), slopeGap: Math.abs(m - n)};
+      }).filter(p => p.slopeGap > .04 && Math.abs(p.x) < 4.3 && Math.abs(p.y) < 3.5 && Math.abs(p.x - p.anchor) > .65 && Math.abs(p.x - a) > .4);
+      const group = candidates.flatMap((p, i) => candidates.slice(i + 1).flatMap((q, j) => count === 2 ? [[p, q]] : candidates.slice(i + j + 2).map(r => [p, q, r]))).filter(group => group.every((p, i) => group.slice(i + 1).every(q => Math.hypot(p.x - q.x, p.y - q.y) > (count === 2 ? 1.2 : .8)))).sort((p, q) => Math.max(...q.map(p => p.x)) - Math.min(...q.map(p => p.x)) - Math.max(...p.map(p => p.x)) + Math.min(...p.map(p => p.x)))[0];
+      if (!group) throw new Error('Rendez-vous oblique introuvable');
+      anchors = group.map(p => p.anchor);
+      targets = group.map((p, i) => target(p.anchor, p.x, i));
+    } else targets = anchors.map((anchor, i) => target(anchor, (a + anchor) / 2, i));
     plan = anchors.map((anchor, i) => ({a: anchor, direction: 'both', targets: [i]}));
-    combination = {a, direction: 'both', targets: [0, 1]};
+    combination = {a, direction: 'both', targets: targets.map(t => t.id)};
     // A choice of one direction could never cover the opposite sides of this tangent.
   } else if (triple && number % 2) {
     const anchors = [h - 2, h - .75, h + 2], xs = [h - 3.5, h + .2, h + 3.5];
     targets = anchors.map((a, i) => target(a, xs[i], i));
     plan = anchors.map((a, i) => ({a, direction: directionFor(a, xs[i]), targets: [i]}));
   } else {
-    const left = h - 1.5, right = h + 1.5;
-    targets = triple ? [target(left, h - 3.4, 0), target(left, h - 2.3, 1), target(right, h + 3.2, 2)] : [target(left, h - 3.3, 0), target(right, h + 3.3, 1)];
+    const left = h - 1.5, right = h + (varied ? .85 : 1.5);
+    targets = triple ? [target(left, h - 3.4, 0), target(left, h - 2.3, 1), target(right, h + 3.2, 2)] : [target(left, h - 3.3, 0), target(right, h + (varied ? 3.6 : 3.3), 1)];
     plan = [{a: left, direction: directionFor(left, targets[0].x), targets: triple ? [0, 1] : [0]}, {a: right, direction: directionFor(right, targets.at(-1)!.x), targets: [triple ? 2 : 1]}];
   }
   const boss = number === 11;
@@ -145,19 +244,29 @@ function advancedLevel(id: number, variant: number): Level {
     targets[0].hp = 2;
     plan = plan.flatMap(s => Array.from({length: Math.max(...s.targets.map(id => targets[id].hp ?? 1))}, () => ({...s})));
   }
-  const obstacles: Obstacle[] = world === 6 ? [-1, 1].map((sign, i) => {
-    const a = h + sign * (rendezvous ? 3 : 2), x = h + sign * (rendezvous ? 2.25 : 2.75);
-    return {x, y: tangent(c, a, x) + 1.05, radius: .24, motionY: 1.25, phase: i * Math.PI};
+  const obstacles: Obstacle[] = world === 6 ? [plan[0], plan.at(-1)!].map((s, i) => {
+    const origin = curvePoint(c, s.a), v = unitTangent(c, s.a), sign = s.direction === 'left' ? -1 : 1, side = i ? -1 : 1;
+    const normal = {x: -v.y * side, y: v.x * side};
+    if (combination) {
+      const p = curvePoint(c, combination.a), u = unitTangent(c, combination.a);
+      const x = origin.x + sign * v.x * .75 + normal.x * .55, y = origin.y + sign * v.y * .75 + normal.y * .55;
+      if (Math.abs((x - p.x) * u.y - (y - p.y) * u.x) < .32) {normal.x *= -1;normal.y *= -1;}
+    }
+    return {x: origin.x + sign * v.x * .75 + normal.x * .55, y: origin.y + sign * v.y * .75 + normal.y * .55, radius: .24, motionX: normal.x * .8, motionY: normal.y * .8, phase: i * Math.PI};
   }) : [];
-  const par = plan.length;
+  const par = rendezvous ? Math.max(...targets.map(resistance)) : plan.length;
   const names = rendezvous ? ['Le rendez-vous', 'Un tir ou deux ?', 'L’alignement fugitif'] : triple ? ['Trois éclats', 'Chacun sa tangente', 'Répartis tes tirs'] : ['Deux trajectoires', 'À gauche puis à droite', 'Des cibles indépendantes'];
-  return {id, world, number, title: boss ? ['Le premier gardien', 'Le gardien des croisements', 'Le cœur instable'][world - 4] : names[number % names.length], curve: c, solution: plan[0].a,
+  return {id, world, number, title: boss ? ['Le premier gardien', 'Le gardien des croisements', 'Le cœur instable'][world - 4] : varied ? ['Rendez-vous oblique', 'L’onde décalée', 'Deux hauteurs', 'L’autre versant', 'La courbe en S', 'Au-delà du sommet'][number - 5] : names[number % names.length], curve: c, solution: plan[0].a,
     solutionDirection: plan[0].direction, rule: boss ? 'choose' : rendezvous ? 'both' : rule, targets, obstacles, par, plan, combination,
-    shots: par + 1, seconds: world === 6 && number % 3 === 2 ? boss ? 60 : 35 : 0,
-    instruction: boss ? 'Le gardien change de position à chaque impact. Détruis-le !' : targets.some(t => (t.hp ?? 1) > 1) ? 'La cible blindée demande deux impacts. Répartis tes tirs.' : rendezvous ? 'Deux tirs possibles. Un seul si tu attends leur alignement.' : triple ? 'Trois cibles sur plusieurs tangentes. Répartis tes tirs.' : 'Ces deux cibles demandent deux tangentes différentes.'};
+    shots: Math.max(3, plan.length + 1), seconds: world === 6 && number % 3 === 2 ? boss ? 60 : 35 : 0,
+    instruction: boss ? 'Le gardien change de position à chaque impact. Détruis-le !' : targets.some(t => (t.hp ?? 1) > 1) ? 'La cible blindée demande deux impacts. Répartis tes tirs.' : rendezvous ? 'Attends leur alignement ou répartis tes tirs sur plusieurs tangentes.' : triple ? 'Trois cibles sur plusieurs tangentes. Répartis tes tirs.' : 'Ces deux cibles demandent deux tangentes différentes.'};
 }
 export function movingTarget(level: Level, t: Target, time: number, damage = 0): Point {
   const stage = t.stages?.[Math.min(damage, t.stages.length - 1)] ?? t;
+  if (level.curve.kind === 'parametric') {
+    const v = unitTangent(level.curve, stage.anchor ?? level.solution), distance = t.motion * Math.sin(time * .85 + t.phase);
+    return {x: stage.x + v.x * distance, y: stage.y + v.y * distance};
+  }
   const x = stage.x + t.motion * Math.sin(time * .85 + t.phase);
   return {x, y: stage.y + derivative(level.curve, stage.anchor ?? level.solution) * (x - stage.x)};
 }
@@ -170,9 +279,12 @@ export const hasMotion = (level: Level) => level.targets.some(t => t.motion) || 
 /** Fit the useful part of the graph without stretching either coordinate axis. */
 export function projection(level: Level, width: number, height: number) {
   const compact = height < 350, short = height < 210;
-  const top = compact ? 31 : 47, bottom = compact ? 24 : 35;
-  const ys = [0, ...level.plan.map(s => value(level.curve, s.a)), ...level.obstacles.flatMap(o => [o.y - o.radius - (o.motionY ?? 0), o.y + o.radius + (o.motionY ?? 0)]), ...level.targets.flatMap(t => (t.stages ?? [t]).flatMap(stage => {
-    const dy = Math.abs(derivative(level.curve, stage.anchor ?? level.solution) * t.motion) + t.radius;
+  const parametric = level.curve.kind === 'parametric';
+  const top = parametric ? compact ? 48 : 80 : compact ? 31 : 47, bottom = compact ? 24 : 35;
+  const [start, end] = parameterRange(level.curve);
+  const curveYs = parametric ? Array.from({length: 181}, (_, i) => curvePoint(level.curve, start + (end - start) * i / 180).y) : [];
+  const ys = [0, ...curveYs, ...level.plan.map(s => curvePoint(level.curve, s.a).y), ...level.obstacles.flatMap(o => [o.y - o.radius - (o.motionY ?? 0), o.y + o.radius + (o.motionY ?? 0)]), ...level.targets.flatMap(t => (t.stages ?? [t]).flatMap(stage => {
+    const dy = (parametric ? t.motion : Math.abs(derivative(level.curve, stage.anchor ?? level.solution) * t.motion)) + t.radius;
     return [stage.y - dy, stage.y + dy];
   }))];
   const low = Math.min(...ys), high = Math.max(...ys);
@@ -194,13 +306,13 @@ export function rayCircle(origin: Point, unit: Point, center: Point, radius: num
   if (along + half < 0) return null;
   return Math.max(0, along - half);
 }
-export interface ShotResult { origin: Point; slope: number; hits: number[]; obstacleHits: number[]; impacts: {id: number; precision: number}[]; beams: {end: Point; blocked: boolean}[] }
+export interface ShotResult { origin: Point; vector: Point; slope: number; hits: number[]; obstacleHits: number[]; impacts: {id: number; precision: number}[]; beams: {end: Point; blocked: boolean}[] }
 export function fire(level: Level, a: number, direction: Direction, time: number, damage: ReadonlyMap<number, number> = new Map()): ShotResult {
-  const origin = {x: a, y: value(level.curve, a)}, slope = derivative(level.curve, a);
+  const origin = curvePoint(level.curve, a), slope = derivative(level.curve, a), vector = unitTangent(level.curve, a);
   const impacts = new Map<number, number>(), obstacleHits = new Set<number>(), beams: ShotResult['beams'] = [];
   const signs = direction === 'both' ? [-1, 1] : direction === 'left' ? [-1] : [1];
   for (const sign of signs) {
-    const norm = Math.hypot(1, slope), unit = {x: sign / norm, y: sign * slope / norm};
+    const unit = {x: sign * vector.x, y: sign * vector.y};
     let stop = 35, obstacleId = -1;
     level.obstacles.forEach((o, i) => {const d = rayCircle(origin, unit, movingObstacle(o, time), o.radius);if (d !== null && d < stop) {stop = d;obstacleId = i;}});
     if (obstacleId >= 0) obstacleHits.add(obstacleId);
@@ -216,6 +328,6 @@ export function fire(level: Level, a: number, direction: Direction, time: number
     }
     beams.push({end: {x: origin.x + unit.x * stop, y: origin.y + unit.y * stop}, blocked: obstacleId >= 0});
   }
-  return {origin, slope, hits: [...impacts.keys()], obstacleHits: [...obstacleHits], impacts: [...impacts].map(([id, precision]) => ({id, precision})), beams};
+  return {origin, vector, slope, hits: [...impacts.keys()], obstacleHits: [...obstacleHits], impacts: [...impacts].map(([id, precision]) => ({id, precision})), beams};
 }
-export const ruleLabel = (rule: Rule) => ({both: '↔ Double rayon', left: '← Vers la gauche', right: 'Vers la droite →', choose: '← Sens au choix →'})[rule];
+export const ruleLabel = (rule: Rule, c?: Curve) => c?.kind === 'parametric' ? ({both: '↔ Deux sens', left: '← Sens inverse', right: 'Sens du parcours →', choose: '← Sens du tir →'})[rule] : ({both: '↔ Double rayon', left: '← Vers la gauche', right: 'Vers la droite →', choose: '← Sens au choix →'})[rule];

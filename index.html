@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090f21">
-  <meta name="description" content="Touche une courbe. Tire sa tangente. 84 défis, sept mondes, vies, obstacles mobiles et gardiens, jouables hors connexion.">
+  <meta name="description" content="Touche une courbe. Tire sa tangente. 96 défis, huit mondes, vies, obstacles mobiles et gardiens, jouables hors connexion.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>TANGENT STRIKE — Le laser des dérivées</title>
@@ -16,16 +16,16 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="Tangent Strike, accueil"><span class="brand-icon" aria-hidden="true">ϟ</span><span>TANGENT<span class="brand-strike">STRIKE<span class="brand-dot">.</span></span></span></a>
+    <a class="brand" href="./" aria-label="Tangent Strike, accueil"><span class="brand-icon" aria-hidden="true"><img src="./icons/icon.svg" width="48" height="48" alt=""></span><span>TANGENT<span class="brand-strike">STRIKE<span class="brand-dot">.</span></span></span></a>
     <span class="brand-tagline">LE LASER DES DÉRIVÉES</span>
     <div class="top-actions"><span class="connection" id="connection"><i></i> EN LIGNE</span><button class="install-button" id="install"><span aria-hidden="true">↓</span> Installer <span class="install-long">le jeu</span></button><button class="icon-button" id="sound" aria-label="Désactiver le son" title="Son">♫</button><button class="icon-button" id="help" aria-label="Comment jouer" title="Comment jouer">?</button></div>
   </header>
   <main class="layout">
     <aside class="sidebar" aria-label="Campagne">
-      <div class="sidebar-heading"><div><p class="eyebrow">TA TRAJECTOIRE</p><h1>La campagne<span>.</span></h1></div><span class="campaign-count" id="campaign-count">00 / 84</span></div>
+      <div class="sidebar-heading"><div><p class="eyebrow">TA TRAJECTOIRE</p><h1>La campagne<span>.</span></h1></div><span class="campaign-count" id="campaign-count">00 / 96</span></div>
       <div class="progress-track"><span id="campaign-progress"></span></div>
-      <nav class="worlds" id="worlds" aria-label="Les sept mondes"></nav>
-      <div class="sidebar-bottom"><button id="practice" class="practice-button"><span>⌁</span><span><strong>Laboratoire libre</strong><small>Tous les mondes, sans limite de tirs</small></span><span>↗</span></button><button class="achievements-button" id="achievements">✧ <span>Mes succès</span><span id="achievement-count">0 / 50</span></button></div>
+      <nav class="worlds" id="worlds" aria-label="Les huit mondes"></nav>
+      <div class="sidebar-bottom"><button id="practice" class="practice-button"><span>⌁</span><span><strong>Laboratoire libre</strong><small>Tous les mondes, sans limite de tirs</small></span><span>↗</span></button><button class="achievements-button" id="achievements">✧ <span>Mes succès</span><span id="achievement-count">0 / 51</span></button></div>
       <p class="save-caption" id="save-caption">● Progression enregistrée sur cet appareil</p>
     </aside>
     <section class="play-area" aria-label="Zone de jeu">
@@ -44,7 +44,7 @@
       <div class="bottom-note"><span><i></i> COMPRENDRE. VISER. RECOMMENCER.</span><button id="lesson">La minute mathématique ↗</button></div>
     </section>
   </main>
-  <footer class="page-footer"><span>TANGENT STRIKE <span class="muted">/</span> Des courbes, du sens, du jeu.</span><button id="settings">Préférences</button><span class="footer-version">84 DÉFIS · 7 MONDES · ZÉRO COMPTE</span></footer>
+  <footer class="page-footer"><span>TANGENT STRIKE <span class="muted">/</span> Des courbes, du sens, du jeu.</span><button id="settings">Préférences</button><span class="footer-version">96 DÉFIS · 8 MONDES · ZÉRO COMPTE</span></footer>
   <dialog id="modal"><div class="modal-header"><span class="eyebrow" id="modal-caption">TANGENT STRIKE</span><button id="close-modal" class="icon-button" aria-label="Fermer">×</button></div><div id="modal-content"></div></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
   <noscript>Active JavaScript pour jouer à TANGENT STRIKE.</noscript>

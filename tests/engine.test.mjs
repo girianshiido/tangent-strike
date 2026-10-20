@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {BOUNDS, derivative, fire, makeLevel, movingObstacle, movingTarget, projection, rayCircle, resistance, tangent, TOTAL_LEVELS, value} from '../.build/engine.js';
+import {BOUNDS, curveDerivative, curvePoint, parameterRange, unitTangent, derivative, fire, makeLevel, movingObstacle, movingTarget, projection, rayCircle, resistance, tangent, TOTAL_LEVELS, value} from '../.build/engine.js';
 import {achievements, award, failAttempt, freshSave, levelUnlocked, loseLife, readSave, recordImpacts, recoverInterruptedAttempt, restartWorld, worldUnlocked} from '../.build/storage.js';
 function apply(level, damage, result){for(const id of result.hits){const t=level.targets.find(t=>t.id===id);damage.set(id,Math.min(resistance(t),(damage.get(id)??0)+1));}}
 function simulate(level, initialTime){
@@ -18,7 +18,7 @@ function simulate(level, initialTime){
   assert.ok(level.targets.every(t=>(damage.get(t.id)??0)>=resistance(t)),`Unsolved level ${level.id}`);
   assert.ok(used<=level.shots);return damage;
 }
-test('84 levels × 21 variants are solvable at seven starting times, with safe windows for moving obstacles',()=>{
+test('96 levels × 21 variants are solvable at seven starting times, with safe windows for moving obstacles',()=>{
   for(let v=0;v<=20;v++)for(let id=0;id<TOTAL_LEVELS;id++){
     const l=makeLevel(id,v);if(l.world===0)assert.ok(Math.abs(derivative(l.curve,l.solution))<1e-9);
     for(const time of [0,1,3,5,9,17,25])simulate(l,time);
@@ -34,7 +34,7 @@ test('every target stage and moving obstacle stays inside mathematical bounds',(
   }
 });
 test('analytic derivatives agree with independent finite differences',()=>{
-  for(let id=0;id<TOTAL_LEVELS;id++){const c=makeLevel(id).curve;for(const x of [-3,-1.2,0,.8,2.5]){const e=1e-5;assert.ok(Math.abs(derivative(c,x)-(value(c,x+e)-value(c,x-e))/(2*e))<1e-6);}}
+  for(let id=0;id<TOTAL_LEVELS;id++){const c=makeLevel(id).curve;if(c.kind==='parametric')continue;for(const x of [-3,-1.2,0,.8,2.5]){const e=1e-5;assert.ok(Math.abs(derivative(c,x)-(value(c,x+e)-value(c,x-e))/(2*e))<1e-6);}}
 });
 test('all geometric solutions are accepted; direction rejects the opposite ray',()=>{
   const curve={kind:'polynomial',coefficients:[0,0,1],scale:1,h:0,k:0,label:'x²'};
@@ -99,7 +99,7 @@ test('a collision and final-shot failure charge one life; reload recovers an int
 });
 test('old 60-level saves migrate without losing stars or previously open worlds',()=>{
   const old={version:1,stars:Array(60).fill(3),lastLevel:59,wins:60,sound:false};
-  const s=readSave({getItem:()=>JSON.stringify(old)});assert.equal(s.version,2);assert.equal(s.stars.length,84);assert.deepEqual(s.stars.slice(0,60),old.stars);assert.equal(s.runs.slice(0,5).every(r=>r.cleared),true);assert.equal(worldUnlocked(s,5),true);assert.equal(worldUnlocked(s,6),false);assert.equal(s.sound,false);
+  const s=readSave({getItem:()=>JSON.stringify(old)});assert.equal(s.version,2);assert.equal(s.stars.length,TOTAL_LEVELS);assert.deepEqual(s.stars.slice(0,60),old.stars);assert.equal(s.runs.slice(0,5).every(r=>r.cleared),true);assert.equal(worldUnlocked(s,5),true);assert.equal(worldUnlocked(s,6),false);assert.equal(s.sound,false);
   const partial=readSave({getItem:()=>JSON.stringify({...old,stars:Array(8).fill(2),lastLevel:12})});assert.equal(worldUnlocked(partial,1),true);assert.equal(partial.runs[0].next,8);
 });
 test('corrupt saves and disabled storage do not crash the game',()=>{
@@ -134,9 +134,71 @@ test('adaptive camera contains all target stages and complete obstacle trajector
     }
   }
 });
-test('fifty distinct achievements cover four categories; combat progress survives a save roundtrip',()=>{
-  const s=freshSave(),all=achievements(s);assert.equal(all.length,50);assert.equal(new Set(all.map(a=>a.id)).size,50);assert.equal(new Set(all.map(a=>a.category)).size,4);assert.equal(all.some(a=>a.done),false);
+test('fifty-one distinct achievements cover four categories; combat progress survives a save roundtrip',()=>{
+  const s=freshSave(),all=achievements(s);assert.equal(all.length,51);assert.equal(new Set(all.map(a=>a.id)).size,51);assert.equal(new Set(all.map(a=>a.category)).size,4);assert.equal(all.some(a=>a.done),false);
   const l=makeLevel(70),r=fire(l,l.combination.a,'both',0);assert.equal(r.hits.length,3);recordImpacts(s,l,r,'both',[1,2]);assert.equal(s.stats.tripleShots,1);assert.equal(s.stats.hits,3);assert.equal(s.stats.moving,2);
   award(s,59,3,false,false,1,3);const again=readSave({getItem:()=>JSON.stringify(s)});assert.deepEqual(again.stats,s.stats);assert.equal(achievements(again).find(a=>a.id==='triple').done,true);assert.equal(achievements(again).find(a=>a.id==='boss-first').done,true);
   const prior=new Set(achievements(again).filter(a=>a.done).map(a=>a.id));restartWorld(again,4);for(const id of prior)assert.equal(achievements(again).find(a=>a.id===id).done,true);
+});
+test('parametric velocities match finite differences and remain regular on every orbit variant',()=>{
+  for(let id=84;id<96;id++)for(let variant=0;variant<12;variant++){
+    const c=makeLevel(id,variant).curve,[start,end]=parameterRange(c);
+    for(let i=0;i<=80;i++){
+      const t=start+(end-start)*i/80,e=1e-6,v=curveDerivative(c,t),l=curvePoint(c,t-e),r=curvePoint(c,t+e),u=unitTangent(c,t);
+      assert.ok(Math.hypot(v.x,v.y)>.1);assert.ok(Math.abs(v.x-(r.x-l.x)/(2*e))<1e-7);assert.ok(Math.abs(v.y-(r.y-l.y)/(2*e))<1e-7);assert.ok(Math.abs(Math.hypot(u.x,u.y)-1)<1e-12);
+    }
+  }
+});
+test('right follows the traversal even when it points left or vertically; left reverses it',()=>{
+  const top=makeLevel(85),forward=fire(top,top.solution,'right',0);
+  assert.ok(forward.vector.x<-.99);assert.deepEqual(forward.hits,[0]);assert.deepEqual(fire(top,top.solution,'left',0).hits,[]);
+  const vertical=makeLevel(84),up=fire(vertical,0,'right',0),down=fire(vertical,0,'left',0);
+  assert.ok(Math.abs(up.vector.x)<1e-12&&up.vector.y>.99);assert.deepEqual(up.hits,[0]);assert.deepEqual(down.hits,[]);
+  for(const p of [up.origin,...up.beams.map(b=>b.end)])assert.ok(Number.isFinite(p.x)&&Number.isFinite(p.y));
+  const reverse=makeLevel(88);assert.ok(fire(reverse,0,'right',0).vector.y<-.99);assert.deepEqual(fire(reverse,0,'right',0).hits,[0]);
+});
+test('vertical tangents respect target borders, obstacle ordering and moving targets',()=>{
+  const l=makeLevel(84),t={id:0,x:2.25,y:1.5,radius:.25,motion:0,phase:0,anchor:0};
+  assert.deepEqual(fire({...l,targets:[t]},0,'right',0).hits,[0]);
+  assert.deepEqual(fire({...l,targets:[{...t,x:2.250001}]},0,'right',0).hits,[]);
+  const blocked=fire({...l,obstacles:[{x:2,y:.75,radius:.2}]},0,'right',0);assert.deepEqual(blocked.hits,[]);assert.deepEqual(blocked.obstacleHits,[0]);
+  const after=fire({...l,obstacles:[{x:2,y:2.5,radius:.2}]},0,'right',0);assert.deepEqual(after.hits,[0]);assert.deepEqual(after.obstacleHits,[0]);
+  const moving=makeLevel(90);for(const time of [0,1.85,3.7,7.4])assert.deepEqual(fire(moving,moving.solution,'right',time).hits,[0]);
+});
+test('the whole parametric curve is inside the plot, including compact landscape layouts',()=>{
+  for(let id=84;id<96;id++)for(const [w,h] of [[294,150],[294,262],[462,135],[600,480]]){
+    const l=makeLevel(id),p=projection(l,w,h),[start,end]=parameterRange(l.curve);
+    for(let i=0;i<=360;i++){const q=curvePoint(l.curve,start+(end-start)*i/360),x=p.center.x+q.x*p.scale,y=p.center.y-q.y*p.scale;assert.ok(x>=12&&x<=w-12&&y>=p.top&&y<=h-p.bottom,`Clipped orbit ${id} at ${w}×${h}`);}
+  }
+});
+test('an existing seven-world save opens Orbites without losing stars, lives or boss records',()=>{
+  const old=freshSave();old.stars=Array(84).fill(3);old.runs=old.runs.slice(0,7).map(r=>({...r,next:12,cleared:true,lives:2}));old.unlockedWorld=6;old.lastLevel=83;old.stats.bosses=[59,71,83];
+  const upgraded=readSave({getItem:()=>JSON.stringify(old)});assert.equal(upgraded.stars.length,96);assert.deepEqual(upgraded.stars.slice(0,84),old.stars);assert.deepEqual(upgraded.runs.slice(0,7),old.runs);assert.equal(worldUnlocked(upgraded,7),true);assert.equal(levelUnlocked(upgraded,84),true);assert.equal(levelUnlocked(upgraded,85),false);assert.equal(upgraded.runs[7].lives,3);
+  award(upgraded,95,4,false,false,1,4);assert.ok(readSave({getItem:()=>JSON.stringify(upgraded)}).stats.bosses.includes(95));
+});
+test('world five levels six to eleven vary curves and never repeat the horizontal rendezvous',()=>{
+  const levels=Array.from({length:6},(_,i)=>makeLevel(53+i));assert.ok(new Set(levels.map(l=>l.curve.kind+JSON.stringify(l.curve.coefficients))).size>=5);assert.equal(new Set(levels.map(l=>l.title)).size,6);
+  for(const l of levels){assert.ok(Math.abs(l.targets[0].y-l.targets[1].y)>.15);if(l.combination){assert.ok(Math.abs(derivative(l.curve,l.combination.a))>.15);assert.equal(l.par,1);assert.equal(fire(l,l.combination.a,'both',0).hits.length,2);}else assert.equal(l.plan.length,2);simulate(l,1.85);assert.ok(l.shots>=3);}
+});
+
+test('the full fifth world includes concave parabolas, sine, cosine and both cubic and quartic curves',()=>{
+ const levels=Array.from({length:12},(_,i)=>makeLevel(48+i));
+ assert.ok(levels.some(l=>l.curve.kind==='polynomial'&&l.curve.coefficients.length===3&&l.curve.scale<0));
+ assert.ok(levels.some(l=>l.curve.kind==='sine'));assert.ok(levels.some(l=>l.curve.kind==='cosine'));
+ assert.ok(levels.some(l=>l.curve.coefficients.length===4));assert.ok(levels.some(l=>l.curve.coefficients.length===5));
+ assert.equal(levels[11].curve.kind,'sine');
+});
+
+test('worlds six and seven preserve their mechanics while using at least five curve families and concave parabolas',()=>{
+ for(const world of [5,6]){const levels=Array.from({length:12},(_,i)=>makeLevel(world*12+i));assert.ok(new Set(levels.map(l=>l.curve.kind+JSON.stringify(l.curve.coefficients))).size>=5);assert.ok(levels.some(l=>l.curve.coefficients.length===3&&l.curve.scale<0));assert.ok(levels.some(l=>l.targets.some(t=>(t.hp??1)>1)));if(world===6)assert.ok(levels.every(l=>l.obstacles.some(o=>o.motionX||o.motionY)));}
+});
+
+
+test('the rendezvous shot objective includes armor and remains achievable without collisions',()=>{
+ for(let id=48;id<84;id++)for(let variant=0;variant<21;variant++){
+  const l=makeLevel(id,variant),shot=l.combination;if(!shot)continue;
+  assert.equal(l.par,Math.max(...l.targets.map(resistance)));const damage=new Map();
+  for(let n=0;n<l.par;n++){const r=fire(l,shot.a,shot.direction,0,damage);assert.deepEqual(r.obstacleHits,[]);apply(l,damage,r);}
+  assert.ok(l.targets.every(t=>damage.get(t.id)===resistance(t)),`Impossible star objective ${id}/${variant}`);
+ }
 });

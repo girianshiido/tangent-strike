@@ -4,7 +4,7 @@
 
 [Jouer et installer](https://girianshiido.github.io/tangent-strike/)
 
-## Campagne : 84 défis, sept mondes
+## Campagne : 96 défis, huit mondes
 
 1. **Tir horizontal** : reconnaître une pente nulle, y compris sans extremum.
 2. **La bonne pente** : anticiper la tangente et le sens du laser.
@@ -12,7 +12,10 @@
 4. **Zone interdite** : éviter les obstacles et protéger ses vies.
 5. **Laser Master** : deux tangentes distinctes, ou une tangente commune à un instant précis.
 6. **Trajectoires croisées** : trois cibles réparties sur deux ou trois tangentes, puis des cibles blindées.
-7. **Champ instable** : obstacles mobiles, croisements, blindages et gardien final.
+7. **Champ instable** : obstacles mobiles, croisements, blindages et gardien.
+8. **Orbites** : cercles, ellipses, huit, spirales et courbes ondulées, avec tangentes verticales et gardien orbital.
+
+Les mondes 5 à 7 alternent paraboles convexes et concaves, cubiques, quartiques, sinus et cosinus. Les rendez-vous mobiles demandent des pentes variées.
 
 Chaque monde compte 12 niveaux. La campagne les débloque dans l’ordre ; terminer les 12 ouvre le monde suivant. Le laboratoire donne un accès libre à tous les défis sans valider la campagne.
 
@@ -22,7 +25,7 @@ La campagne accorde **trois vies par monde**. Un obstacle touché coûte une vie
 
 Abandonner, recommencer ou recharger un essai déjà commencé coûte une vie. À zéro, le monde reprend au premier niveau avec trois vies et une nouvelle variation des défis. Les records d’étoiles, les succès acquis et l’accès aux mondes déjà ouverts restent conservés.
 
-Les **cibles blindées** demandent deux impacts. Les derniers niveaux des mondes 5, 6 et 7 mettent en scène un **gardien** de 3, 4 ou 5 points de résistance. Il se déplace et change de position et de tangente après chaque impact ; les deux derniers gardiens ont des cibles d’escorte. Les anneaux et les nombres indiquent la résistance restante.
+Les **cibles blindées** demandent deux impacts. Les derniers niveaux des mondes 5, 6 et 7 mettent en scène un **gardien** de 3, 4 ou 5 points de résistance. Il se déplace et change de position et de tangente après chaque impact ; les deux derniers gardiens ont des cibles d’escorte. Le gardien orbital possède quatre points de résistance. Les anneaux et les nombres indiquent la résistance restante.
 
 Le nombre de tirs tient compte des tangentes nécessaires et des résistances. L’« objectif » affiché est le budget de référence pour les étoiles. Les derniers défis ont parfois un chronomètre : il commence au premier geste et se suspend dans les menus ou lorsque la page est masquée.
 
@@ -31,6 +34,7 @@ Le nombre de tirs tient compte des tangentes nécessaires et des résistances. L
 - Touche la courbe turquoise pour choisir le départ du laser.
 - Maintiens et glisse pour ajuster, puis relâche pour tirer.
 - **↔** tire dans les deux sens. **← / →** impose ou permet de choisir le sens avant le tir.
+- Dans **Orbites**, les petites flèches indiquent le sens croissant du paramètre : **→** suit le parcours, **←** le remonte, quelle que soit la direction à l’écran.
 - Au clavier : sélectionne le repère avec Tab, flèches pour viser, Maj pour affiner, Entrée pour tirer.
 - Un disque doit être intercepté pour subir un impact. Le halo extérieur est décoratif.
 
@@ -42,15 +46,15 @@ Le centrage vaut 100 % au centre du disque, 0 % au bord. Le moins bon impact du 
 
 Une nouvelle tentative ne diminue pas un record d’étoiles. Les indices de campagne expliquent une méthode sans donner le point exact. Les solutions chiffrées et les marqueurs de tir sont réservés au laboratoire : ils n’accordent ni étoiles, ni progression, ni succès de combat.
 
-**50 succès** sont répartis en quatre catégories filtrables : Parcours, Précision, Combats et Maîtrise. Leurs jauges suivent les niveaux différents, les étoiles, les impacts multiples, les blindages, les gardiens et les séries sans échec. Les trois gardiens doivent réellement être vaincus pour leurs succès, même avec une ancienne sauvegarde complète.
+**51 succès** sont répartis en quatre catégories filtrables : Parcours, Précision, Combats et Maîtrise. Leurs jauges suivent les niveaux différents, les étoiles, les impacts multiples, les blindages, les gardiens et les séries sans échec. Les trois gardiens doivent réellement être vaincus pour leurs succès, même avec une ancienne sauvegarde complète.
 
 ## Installation, sauvegarde et audio
 
 Le bouton **Installer** utilise la proposition du navigateur lorsqu’elle est disponible. Sur iPhone/iPad, il explique l’ajout à l’écran d’accueil depuis Safari. Le jeu fonctionne aussi directement dans le navigateur.
 
-Le premier chargement connecté prépare tous les fichiers pour jouer hors connexion. La progression reste sur l’appareil, sans compte. Les sauvegardes de la première version (60 niveaux) sont migrées : les étoiles et les mondes déjà ouverts sont conservés. Effacer les données du navigateur efface la sauvegarde.
+Le premier chargement connecté prépare tous les fichiers pour jouer hors connexion. La progression reste sur l’appareil, sans compte. Les anciennes sauvegardes (60 ou 84 niveaux) sont migrées : les étoiles et les mondes déjà ouverts sont conservés. Effacer les données du navigateur efface la sauvegarde.
 
-Les bruitages sont synthétisés à la demande par **Web Audio** : oscillateurs sinusoïdaux, variation de fréquence et enveloppe de volume. Aucun fichier audio, téléchargement sonore ou service externe n’est utilisé. Le bouton de son et les préférences permettent de les désactiver.
+Les huit bruitages mélodiques originaux sont fournis en **OGG**, avec repli **MP3**. Web Audio les décode une fois, après un geste du joueur, puis les joue sans téléchargement supplémentaire. Les deux formats sont disponibles hors connexion. Le bouton de son et les préférences permettent de les désactiver ; couper le son arrête aussi les notes en cours.
 
 L’interface de jeu tient sans défilement sur les formats de test, à partir de 320 × 480 pixels. Sur petit écran en paysage, les niveaux se choisissent dans le menu « ? » pour préserver la place du repère.
 
@@ -58,9 +62,11 @@ L’interface de jeu tient sans défilement sur les formats de test, à partir d
 
 La tangente au point d’abscisse a est calculée par `y = f′(a)(x − a) + f(a)`. Les dérivées sont analytiques. Les axes gardent la même échelle ; le cadrage inclut les déplacements complets des cibles, les phases des gardiens et les obstacles.
 
+Pour les courbes paramétrées, la tangente suit le vecteur analytique `(x′(t), y′(t))`. Le calcul accepte les tangentes verticales sans diviser par `x′(t)`. La visée se fait sur l’ensemble de la courbe, avec continuité de branche aux croisements.
+
 Les cibles sont construites sur une ou plusieurs tangentes. Chacune peut se déplacer le long de sa propre tangente, tout en restant atteignable. Les rendez-vous mobiles croisent également une tangente commune à certains instants, permettant un tir groupé. Les obstacles mobiles ouvrent et ferment des passages ; les tests cherchent des fenêtres sûres dans leur cycle.
 
-Les collisions utilisent les intersections de rayons orientés avec des disques, à l’instant du tir. Un obstacle arrête sa seule branche. Un même appui ne retire qu’un point de résistance par cible, même en double rayon. Toute autre trajectoire satisfaisant l’objectif est acceptée. Le premier monde demande explicitement une tangente horizontale, avec une petite tolérance de pente pour le toucher.
+Les collisions utilisent les intersections de rayons orientés avec des disques, à l’instant du tir. Un obstacle arrête sa seule branche. Un même appui ne retire qu’un point de résistance par cible, même en double rayon. Toute autre trajectoire satisfaisant l’objectif est acceptée. Le premier monde demande une tangente horizontale pour obtenir deux ou trois étoiles ; un impact au bord du disque rapporte toujours au moins une étoile.
 
 ## Développer et vérifier
 
@@ -79,11 +85,14 @@ L’aperçu est disponible à `http://127.0.0.1:5191/`. `docs/` contient l’exp
 ```sh
 pnpm exec playwright install chromium
 pnpm qa
+pnpm qa:orbits
+pnpm qa:render
+pnpm qa:audio
 ```
 
 `CHROME_PATH`, `PLAYWRIGHT_MODULE` et `QA_URL` permettent d’utiliser un navigateur installé et une autre URL. Les résultats et captures sont enregistrés dans `test-results/`, ignoré par Git.
 
-Les tests du moteur contrôlent 1 764 défis et variations à sept instants de départ, les fenêtres des obstacles mobiles, les répartitions de cibles, les résistances, les phases des gardiens, les vies, la migration et les 50 succès. Les essais navigateur jouent les 84 défis par les commandes tactiles et vérifient onze formats, la flèche, les malus, les reprises, le laboratoire et le rechargement hors connexion.
+Les tests du moteur contrôlent 2 016 défis et variations à sept instants de départ, les fenêtres des obstacles mobiles, les répartitions de cibles, les résistances, les phases des gardiens, les vies, la migration et les 51 succès. Les essais navigateur jouent les 96 défis par les commandes tactiles et vérifient onze formats, la flèche, les malus, les reprises, le laboratoire et le rechargement hors connexion. Les contrôles d’Orbites couvrent aussi les anciennes sauvegardes, les tirs verticaux, les sens de parcours et 36 cadrages. Les contrôles audio vérifient les deux formats, le silence et le fonctionnement hors connexion.
 
 ## Publier
 

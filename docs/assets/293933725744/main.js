@@ -1,5 +1,5 @@
 import { Board, shotDuration } from './board.js';
-import { derivative, fire, format, hasMotion, makeLevel, movingTarget, resistance, ruleLabel, TOTAL_LEVELS, WORLDS } from './engine.js';
+import { advanceParameter, curvePoint, derivative, fire, format, hasMotion, makeLevel, movingTarget, resistance, ruleLabel, unitTangent, TOTAL_LEVELS, WORLDS } from './engine.js';
 import { achievements, award, failAttempt, freshSave, levelUnlocked, loseLife, MAX_LIVES, readSave, recordImpacts, recoverInterruptedAttempt, restartWorld, resumeLevel, worldUnlocked, writeSave } from './storage.js';
 import { setupInstallation } from './install.js';
 import { icon, worldIcon } from './icons.js';
@@ -20,7 +20,6 @@ const canvas = $('#board');
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const state = () => ({ level, destroyed, damage, time: targetTime, aim, shot, hint, reducedMotion: save.reducedMotion || motionPreference.matches });
 const sounds = new SoundBank(() => save.sound);
-$('.brand-icon').innerHTML = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M5 24Q15-5 27 24M3 21l26-8"/><circle cx="16" cy="17" r="2.2" fill="currentColor" stroke="none"/></svg>';
 $('.mission-icon').innerHTML = icon('target');
 $('#retry').innerHTML = icon('retry');
 $('#practice>span:first-child').innerHTML = icon('lab');
@@ -68,7 +67,7 @@ function updateCampaign() {
         const open = practice || levelUnlocked(save, id);
         return `<button class="level-chip ${id === level.id ? 'current' : ''} ${stars ? 'complete' : ''}" data-level="${id}" ${open ? '' : 'disabled'} aria-label="Niveau ${i + 1}${stars ? `, record : ${stars} étoiles` : ''}${open ? '' : ', à débloquer'}" aria-current="${id === level.id ? 'step' : 'false'}">${String(i + 1).padStart(2, '0')}</button>`;
     }).join('');
-    $('#achievement-count').textContent = `${achievements(save).filter(a => a.done).length} / 50`;
+    $('#achievement-count').textContent = `${achievements(save).filter(a => a.done).length} / ${achievements(save).length}`;
     $('#practice').classList.toggle('active', practice);
 }
 function updateControls() {
@@ -79,7 +78,9 @@ function updateControls() {
     $('#shots').setAttribute('aria-label', practice ? 'Tirs illimités' : `${level.shots - used} tirs restants`);
     $('#shots-label').textContent = practice ? 'TIRS LIBRES' : 'ÉNERGIE';
     $('#direction-control').hidden = level.rule !== 'choose';
+    $('#direction-control .control-label').textContent = level.curve.kind === 'parametric' ? 'SENS DU TIR' : 'DIRECTION';
     for (const b of document.querySelectorAll('[data-direction]')) {
+        b.setAttribute('aria-label', level.curve.kind === 'parametric' ? b.dataset.direction === 'right' ? 'Tirer dans le sens du parcours' : 'Tirer dans le sens inverse du parcours' : b.dataset.direction === 'right' ? 'Tirer vers la droite' : 'Tirer vers la gauche');
         b.classList.toggle('selected', b.dataset.direction === direction);
         b.setAttribute('aria-pressed', String(b.dataset.direction === direction));
         b.disabled = busy || finished;
@@ -141,16 +142,18 @@ function startLevel(id, nextVariant = 0) {
     $('#level-title').textContent = level.title;
     $('#level-number').innerHTML = `${String(level.number + 1).padStart(2, '0')}<span> / 12</span>`;
     $('#instruction').textContent = level.instruction;
-    $('#mission-detail').textContent = level.rule === 'choose' ? 'Choisis ← ou →, puis touche la courbe.' : 'Touche la courbe. Glisse pour affiner, relâche pour tirer.';
-    $('#function').textContent = level.curve.label;
-    $('#direction-badge').textContent = ruleLabel(level.rule);
+    $('#mission-detail').textContent = level.curve.kind === 'parametric' ? 'Les petites flèches indiquent le sens croissant de t.' : level.rule === 'choose' ? 'Choisis ← ou →, puis touche la courbe.' : 'Touche la courbe. Glisse pour affiner, relâche pour tirer.';
+    $('#function').textContent = level.curve.label.replaceAll(' ; ', '\n');
+    $('#function').classList.toggle('parametric', level.curve.kind === 'parametric');
+    $('#arena').classList.toggle('parametric', level.curve.kind === 'parametric');
+    $('#direction-badge').textContent = ruleLabel(level.rule, level.curve);
     $('#obstacle-legend').hidden = level.obstacles.length === 0;
     $('#first-tip').hidden = id !== 0 || save.stars[0] > 0 || practice;
     $('#first-tip span').textContent = level.curve.scale < 0 ? 'Touche le sommet de la courbe' : 'Touche le creux de la courbe';
     $('#result').hidden = true;
     $('#result').innerHTML = '';
     $('#arena').dataset.level = String(id);
-    canvas.setAttribute('aria-label', `${level.curve.label}. ${level.instruction} ${ruleLabel(level.rule)}. Au clavier : flèches pour viser, Entrée pour tirer.`);
+    canvas.setAttribute('aria-label', `${level.curve.label}. ${level.instruction} ${ruleLabel(level.rule, level.curve)}. Au clavier : flèches pour viser, Entrée pour tirer.`);
     feedback(level.seconds && !practice ? `Défi de ${level.seconds} secondes, dès ton premier geste. Objectif : ${level.par} tirs.` : practice ? 'Tirs et vies illimités. Les solutions ne valident pas la campagne.' : `Objectif : ${level.par} tir${level.par > 1 ? 's' : ''}. Obstacle touché ou échec : −1 vie.`);
     updateCampaign();
     updateControls();
@@ -259,8 +262,9 @@ function shoot(a) {
     updateControls();
     requestDraw();
     const m = result.slope, b = result.origin.y - m * a;
-    const equation = `y ≈ ${format(m)}x ${b < 0 ? '−' : '+'} ${format(Math.abs(b))}`;
-    const explanation = `<strong>a ≈ ${format(a)} · f′(a) ≈ ${format(m)}</strong> &nbsp;|&nbsp; ${equation}`;
+    const equation = level.curve.kind === 'parametric' ? '' : `y ≈ ${format(m)}x ${b < 0 ? '−' : '+'} ${format(Math.abs(b))}`;
+    const v = result.vector;
+    const explanation = level.curve.kind === 'parametric' ? `<strong>t ≈ ${format(a)} · M(${format(result.origin.x)} ; ${format(result.origin.y)})</strong> · v(${format(v.x)} ; ${format(v.y)})` : `<strong>a ≈ ${format(a)} · f′(a) ≈ ${format(m)}</strong> &nbsp;|&nbsp; ${equation}`;
     feedback(collision ? `${explanation}<br>Obstacle touché : ${practice ? 'aucune vie perdue en laboratoire' : '−1 vie'}.` : explanation, collision ? '♡' : 'ϟ');
     window.setTimeout(() => {
         if (thisToken !== token)
@@ -298,7 +302,7 @@ function shoot(a) {
         else if (!practice && used >= level.shots)
             finish(false, false, collision);
         else {
-            feedback(`${explanation}<br>${blocked ? `Obstacle touché : ${practice ? 'pas de malus en laboratoire' : '−1 vie'}. Attends ou change de trajectoire.` : level.world === 0 && Math.abs(m) > .065 ? 'Dans ce monde, cherche une pente nulle : f′(a) = 0.' : level.world === 2 ? 'Les deux cibles doivent être touchées par le même tir.' : result.hits.some(id => level.targets.find(t => t.id === id)?.boss && !destroyed.has(id)) ? 'Gardien touché : il change de position. Trouve sa nouvelle tangente !' : result.hits.length ? `${destroyed.size}/${level.targets.length} cibles détruites. Continue les impacts.` : Math.abs(m) < .035 ? 'Tangente presque horizontale : ajuste ton point.' : 'Faut-il une pente plus grande ou plus petite ?'}`, result.hits.length ? '✦' : '↗');
+            feedback(`${explanation}<br>${blocked ? `Obstacle touché : ${practice ? 'pas de malus en laboratoire' : '−1 vie'}. Attends ou change de trajectoire.` : level.world === 0 && Math.abs(m) > .065 ? 'Dans ce monde, cherche une pente nulle : f′(a) = 0.' : level.world === 2 ? 'Les deux cibles doivent être touchées par le même tir.' : result.hits.some(id => level.targets.find(t => t.id === id)?.boss && !destroyed.has(id)) ? 'Gardien touché : il change de position. Trouve sa nouvelle tangente !' : result.hits.length ? `${destroyed.size}/${level.targets.length} cibles détruites. Continue les impacts.` : level.curve.kind === 'parametric' ? '→ Parcours · ← Sens inverse.' : Math.abs(m) < .035 ? 'Tangente presque horizontale : ajuste ton point.' : 'Faut-il une pente plus grande ou plus petite ?'}`, result.hits.length ? '✦' : '↗');
             updateControls();
             requestDraw();
         }
@@ -329,7 +333,7 @@ canvas.addEventListener('pointermove', event => {
     if (busy || finished || dialog.open)
         return;
     if (pointerId === event.pointerId) {
-        aim = board.nearest(event.clientX, event.clientY).a;
+        aim = board.nearest(event.clientX, event.clientY, aim).a;
         requestDraw();
     }
 });
@@ -342,7 +346,7 @@ canvas.addEventListener('keydown', event => {
         return;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault();
-        aim = Math.max(-5.25, Math.min(5.25, (aim ?? 0) + (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? .025 : .1)));
+        aim = advanceParameter(level.curve, aim ?? 0, (event.key === 'ArrowLeft' ? -1 : 1) * (level.curve.kind === 'parametric' ? event.shiftKey ? .008 : .04 : event.shiftKey ? .025 : .1));
         canvas.setAttribute('aria-label', board.describe(aim));
         requestDraw();
     }
@@ -364,7 +368,8 @@ function revealHint() {
     const next = level.plan.find(s => s.targets.some(id => !destroyed.has(id)) && (s.stage === undefined || s.stage === (damage.get(s.targets[0]) ?? 0))) ?? level.plan[0];
     const a = next.a, m = derivative(level.curve, a);
     hint = a;
-    feedback(`Une trajectoire : <strong>a = ${format(a)}</strong>, <strong>f′(a) ≈ ${format(m)}</strong>. ${level.rule === 'choose' ? `Sens ${next.direction === 'left' ? '← gauche' : 'droite →'}.` : ''} ${level.obstacles.length ? 'Attends que le passage soit libre.' : 'Le cercle indique le point de tir.'}`, '✧');
+    const p = curvePoint(level.curve, a), v = unitTangent(level.curve, a);
+    feedback(level.curve.kind === 'parametric' ? `Une trajectoire : <strong>t = ${format(a)}</strong> · M(${format(p.x)} ; ${format(p.y)}) · v(${format(v.x)} ; ${format(v.y)}). ${next.direction === 'left' ? '← Sens inverse.' : next.direction === 'right' ? '→ Sens du parcours.' : '↔ Deux sens.'}` : `Une trajectoire : <strong>a = ${format(a)}</strong>, <strong>f′(a) ≈ ${format(m)}</strong>. ${level.rule === 'choose' ? `Sens ${next.direction === 'left' ? '← gauche' : 'droite →'}.` : ''} ${level.obstacles.length ? 'Attends que le passage soit libre.' : 'Le cercle indique le point de tir.'}`, '✧');
     requestDraw();
 }
 $('#hint').addEventListener('click', revealHint);
@@ -382,7 +387,7 @@ function openPractice() {
 $('#practice').addEventListener('click', openPractice);
 function openAchievements() {
     const all = achievements(save);
-    show('Tes 50 éclats.', `<p>${all.filter(a => a.done).length}/50 succès débloqués. Les records sont conservés quand tu recommences un monde.</p><div class="achievement-filters" aria-label="Catégories de succès">${['Tous', 'Parcours', 'Précision', 'Combats', 'Maîtrise'].map((c, i) => `<button data-category="${c}" class="${i === 0 ? 'selected' : ''}" aria-pressed="${i === 0}">${c}</button>`).join('')}</div><div id="achievement-list"></div>`);
+    show(`Tes ${all.length} éclats.`, `<p>${all.filter(a => a.done).length}/${all.length} succès débloqués. Les records sont conservés quand tu recommences un monde.</p><div class="achievement-filters" aria-label="Catégories de succès">${['Tous', 'Parcours', 'Précision', 'Combats', 'Maîtrise'].map((c, i) => `<button data-category="${c}" class="${i === 0 ? 'selected' : ''}" aria-pressed="${i === 0}">${c}</button>`).join('')}</div><div id="achievement-list"></div>`);
     const render = (category) => { $('#achievement-list').innerHTML = all.filter(a => category === 'Tous' || a.category === category).map(a => `<div class="achievement ${a.done ? 'done' : ''}" data-achievement="${a.id}"><span class="badge" aria-hidden="true">${a.icon}</span><div><strong>${a.name}</strong><p>${a.text}</p><div class="achievement-progress" role="progressbar" aria-label="${a.name}" aria-valuenow="${a.value}" aria-valuemin="0" aria-valuemax="${a.goal}"><i style="width:${a.value / a.goal * 100}%"></i></div></div><span class="count">${a.done ? '✓' : `${a.value}/${a.goal}`}</span></div>`).join(''); };
     render('Tous');
     for (const b of document.querySelectorAll('[data-category]'))
@@ -410,11 +415,15 @@ function openSettings() {
 }
 $('#settings').addEventListener('click', openSettings);
 function openLesson() {
+    if (level.curve.kind === 'parametric') {
+        show('Une courbe, un parcours.', `<p>${WORLDS[level.world].lesson}</p><div class="formula-card">${level.curve.label.replaceAll(' ; ', '<br>')}<br><br>M(t₀) + λ(x′(t₀) ; y′(t₀))<br>→ : λ ≥ 0 · ← : λ ≤ 0</div><p>Les petites flèches suivent le paramètre croissant. Pour les courbes fermées, 0 ≤ t ≤ 2π ; pour la spirale, 0 ≤ t ≤ 4π. Les touches ← et → du clavier déplacent le point de visée le long de la courbe.</p><p>Si x′(t₀) = 0 et y′(t₀) ≠ 0, la tangente est verticale. Les intersections avec les cibles et les obstacles sont calculées avec ce vecteur, sans division par x′.</p>`);
+        return;
+    }
     show('La tangente, en une minute.', `<p>${WORLDS[level.world].lesson}</p><div class="formula-card">Tangente au point d’abscisse a :<br>y = f′(a)(x − a) + f(a)</div><p><strong>f(a)</strong> donne la hauteur du point de tir. <strong>f′(a)</strong> donne la pente du laser : positive, il monte vers la droite ; négative, il descend vers la droite.</p><p>Le sens ← ou → indique le côté où part le rayon. Une tangente peut atteindre une cible depuis plusieurs points de la courbe : toutes les solutions valables sont acceptées.</p>`);
 }
 $('#lesson').addEventListener('click', openLesson);
 function help() {
-    show('Un geste. Une tangente.', `<p><strong>Touche la courbe turquoise</strong> : le laser suit sa tangente. Maintiens et glisse pour affiner, puis relâche pour tirer. Au clavier : <span class="key">← →</span>, <span class="key">Maj</span> pour affiner, <span class="key">Entrée</span> pour tirer.</p><p>↔ Deux rayons · ← Gauche · → Droite. Un obstacle rouge arrête sa branche et coûte <strong>une vie par tir</strong>, même si l’autre branche atteint une cible.</p><p><strong>Trois vies par monde.</strong> Un échec, un abandon ou le rechargement d’un essai commencé coûte une vie. À zéro, reprends le monde avec de nouvelles variations ; les records d’étoiles restent conservés. Termine ses 12 niveaux dans l’ordre pour ouvrir le suivant.</p><p>Les cibles blindées demandent plusieurs impacts. Les gardiens ont une résistance visible et changent de trajectoire après chaque impact. Observe aussi les obstacles mobiles.</p><p><strong>Le centrage</strong> vaut 100 % au centre et 0 % au bord. Le moins bon impact compte.<br>★★★ : centrage ≥ 80 %, dans l’objectif de tirs, sans collision.<br>★★ : centrage ≥ 45 %, au plus un tir de plus que l’objectif.<br>★ : toutes les cibles touchées, même au bord. Dans le premier monde, une tangente horizontale est nécessaire pour obtenir deux ou trois étoiles. Les solutions exactes du laboratoire ne valident pas la campagne.</p><div class="menu-actions"><button class="secondary-button" id="menu-levels">Choisir un niveau</button><button class="secondary-button" id="menu-practice">${practice ? 'Revenir à la campagne' : 'Laboratoire libre'} ↗</button><button class="secondary-button" id="menu-achievements">Mes succès ✧</button><button class="secondary-button" id="menu-lesson">La minute mathématique</button><button class="secondary-button" id="menu-settings">Préférences</button></div>`);
+    show('Un geste. Une tangente.', `<p><strong>Touche la courbe turquoise</strong> : le laser suit sa tangente. Maintiens et glisse pour affiner, puis relâche pour tirer. Au clavier : <span class="key">← →</span>, <span class="key">Maj</span> pour affiner, <span class="key">Entrée</span> pour tirer.</p><p>↔ Deux rayons · ← Gauche · → Droite. Dans Orbites, → suit le sens du parcours indiqué sur la courbe ; ← va en sens inverse. Un obstacle rouge arrête sa branche et coûte <strong>une vie par tir</strong>, même si l’autre branche atteint une cible.</p><p><strong>Trois vies par monde.</strong> Un échec, un abandon ou le rechargement d’un essai commencé coûte une vie. À zéro, reprends le monde avec de nouvelles variations ; les records d’étoiles restent conservés. Termine ses 12 niveaux dans l’ordre pour ouvrir le suivant.</p><p>Les cibles blindées demandent plusieurs impacts. Les gardiens ont une résistance visible et changent de trajectoire après chaque impact. Observe aussi les obstacles mobiles.</p><p><strong>Le centrage</strong> vaut 100 % au centre et 0 % au bord. Le moins bon impact compte.<br>★★★ : centrage ≥ 80 %, dans l’objectif de tirs, sans collision.<br>★★ : centrage ≥ 45 %, au plus un tir de plus que l’objectif.<br>★ : toutes les cibles touchées, même au bord. Dans le premier monde, une tangente horizontale est nécessaire pour obtenir deux ou trois étoiles. Les solutions exactes du laboratoire ne valident pas la campagne.</p><div class="menu-actions"><button class="secondary-button" id="menu-levels">Choisir un niveau</button><button class="secondary-button" id="menu-practice">${practice ? 'Revenir à la campagne' : 'Laboratoire libre'} ↗</button><button class="secondary-button" id="menu-achievements">Mes succès ✧</button><button class="secondary-button" id="menu-lesson">La minute mathématique</button><button class="secondary-button" id="menu-settings">Préférences</button></div>`);
     $('#menu-levels').addEventListener('click', () => {
         show('Choisis ton défi.', `<div class="level-menu">${Array.from({ length: 12 }, (_, i) => `<button class="secondary-button" data-jump="${level.world * 12 + i}" ${practice || levelUnlocked(save, level.world * 12 + i) ? '' : 'disabled'}>${String(i + 1).padStart(2, '0')}</button>`).join('')}</div>`);
         for (const b of document.querySelectorAll('[data-jump]'))

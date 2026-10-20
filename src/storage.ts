@@ -21,7 +21,7 @@ export function readSave(storage: Pick<Storage, 'getItem'> = localStorage): Save
     for (const key of ['attempts', 'wins', 'perfect', 'doubles', 'streak', 'bestStreak'] as const) save[key] = integer(data[key], 0, Number.MAX_SAFE_INTEGER);
     for (const key of ['sound', 'reducedMotion'] as const) if (typeof data[key] === 'boolean') save[key] = data[key];
     for (const key of ['hits', 'destroyed', 'armored', 'moving', 'doubleShots', 'tripleShots', 'leftHits', 'rightHits', 'bothHits', 'worldRestarts', 'livesLost'] as const) save.stats[key] = integer(data.stats?.[key], 0, Number.MAX_SAFE_INTEGER);
-    for (const key of ['bosses', 'cleanBosses'] as const) save.stats[key] = Array.isArray(data.stats?.[key]) ? [...new Set<number>(data.stats[key].filter((id: number) => [59, 71, 83].includes(id)))] : [];
+    for (const key of ['bosses', 'cleanBosses'] as const) save.stats[key] = Array.isArray(data.stats?.[key]) ? [...new Set<number>(data.stats[key].filter((id: number) => [59, 71, 83, 95].includes(id)))] : [];
     save.lastLevel = integer(data.lastLevel, 0, TOTAL_LEVELS - 1);
     if (data.version === 2) {
       save.runs = save.runs.map((run, i) => {
@@ -101,9 +101,9 @@ export function achievements(save: Save): Achievement[] {
   const add = (id: string, category: string, name: string, text: string, icon: string, count: number, goal: number) => out.push({id, category, name, text, icon, done: count >= goal, value: Math.min(goal, Math.max(0, count)), goal});
   add('first', 'Parcours', 'Premier éclat', 'Réussir un premier niveau', '✧', save.wins, 1);
   for (const [goal, name] of [[5, 'Apprenti des courbes'], [12, 'Une ligne claire'], [24, 'Tireur confirmé'], [42, 'Cartographe'], [60, 'Aux frontières'], [84, 'Collection complète']] as const) add(`levels-${goal}`, 'Parcours', name, `Réussir ${goal} niveaux différents`, '↗', unique, goal);
-  const names = ['Roi des extrema', 'Maître des pentes', 'Double maîtrise', 'Passage sûr', 'Laser Master', 'Au croisement', 'Champ maîtrisé'];
+  const names = ['Roi des extrema', 'Maître des pentes', 'Double maîtrise', 'Passage sûr', 'Laser Master', 'Au croisement', 'Champ maîtrisé', 'Maître des orbites'];
   save.runs.forEach((r, i) => add(`world-${i}`, 'Parcours', names[i], `Terminer ${WORLDS[i].name}`, WORLDS[i].icon, r.cleared ? 12 : r.next, 12));
-  add('supreme', 'Parcours', 'Dérivée suprême', 'Terminer les sept mondes', '✦', cleared, 7);
+  add('supreme', 'Parcours', 'Dérivée suprême', 'Terminer les sept premiers mondes', '✦', save.runs.slice(0, 7).filter(r => r.cleared).length, 7);
   add('two-worlds', 'Parcours', 'Deux horizons', 'Terminer deux mondes', '↔', cleared, 2);
   add('four-worlds', 'Parcours', 'Quatre horizons', 'Terminer quatre mondes', '◇', cleared, 4);
   add('restart', 'Parcours', 'Persévérance', 'Recommencer un monde', '↻', save.stats.worldRestarts, 1);
@@ -112,7 +112,7 @@ export function achievements(save: Save): Achievement[] {
   for (const [goal, name] of [[1, 'Plein centre'], [5, 'Le bon viseur'], [10, 'Précision lumineuse'], [20, 'Tireur d’élite'], [40, 'Atelier de lumière'], [84, 'Zénith']] as const) add(`perfect-${goal}`, 'Précision', name, `Obtenir trois étoiles sur ${goal} niveau${goal > 1 ? 'x différents' : ''}`, '⌖', goal === 20 ? Math.max(perfect, Math.min(20, save.perfect)) : perfect, goal);
   for (const goal of [50, 100, 150, 200]) add(`stars-${goal}`, 'Précision', `${goal} étoiles`, `Réunir ${goal} étoiles`, '★', stars, goal);
   add('horizontal-perfect', 'Précision', 'L’horizontale parfaite', 'Trois étoiles aux 12 niveaux du premier monde', '↔', save.stars.slice(0, 12).filter(s => s === 3).length, 12);
-  add('perfect-worlds', 'Précision', 'Tout le spectre', 'Trois étoiles dans chacun des sept mondes', '✧', save.runs.filter((_, i) => save.stars.slice(i * 12, i * 12 + 12).includes(3)).length, 7);
+  add('perfect-worlds', 'Précision', 'Tout le spectre', 'Trois étoiles dans chacun des sept premiers mondes', '✧', save.runs.slice(0, 7).filter((_, i) => save.stars.slice(i * 12, i * 12 + 12).includes(3)).length, 7);
   add('double', 'Combats', 'Double destruction', 'Finir un niveau en détruisant plusieurs cibles du même tir', '◎', save.doubles, 1);
   add('double-ten', 'Combats', 'Deux par deux', 'Réussir 10 tirs à impacts multiples', '◎', save.stats.doubleShots, 10);
   add('triple', 'Combats', 'Triple impact', 'Toucher trois cibles du même tir', '✦', save.stats.tripleShots, 1);
@@ -123,7 +123,7 @@ export function achievements(save: Save): Achievement[] {
   add('hits-hundred', 'Combats', 'Cent impacts', 'Infliger 100 impacts', 'ϟ', save.stats.hits, 100);
   add('hits-five-hundred', 'Combats', 'Cinq cents éclats', 'Infliger 500 impacts', 'ϟ', save.stats.hits, 500);
   add('boss-first', 'Combats', 'Un gardien tombe', 'Vaincre un gardien', '♔', save.stats.bosses.length, 1);
-  add('boss-all', 'Combats', 'Les trois gardiens', 'Vaincre les trois gardiens différents', '♔', save.stats.bosses.length, 3);
+  add('boss-all', 'Combats', 'Les trois gardiens', 'Vaincre les trois gardiens différents', '♔', save.stats.bosses.filter(id => [59, 71, 83].includes(id)).length, 3);
   add('boss-clean', 'Combats', 'Bouclier intact', 'Vaincre un gardien sans collision dans le niveau', '♡', save.stats.cleanBosses.length, 1);
   add('streak-three', 'Maîtrise', 'Sur la lancée', 'Réussir trois niveaux sans échec', 'ϟ', save.bestStreak, 3);
   add('streak-ten', 'Maîtrise', 'Sans faute', 'Réussir 10 niveaux sans échec', 'ϟ', save.bestStreak, 10);

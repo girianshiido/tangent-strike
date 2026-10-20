@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {fire,makeLevel,projection,resistance,TOTAL_LEVELS,value} from '../.build/engine.js';
+import {curvePoint,fire,makeLevel,projection,resistance,TOTAL_LEVELS,value} from '../.build/engine.js';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const base=process.env.QA_URL||'http://127.0.0.1:5191/';
 const profile=await mkdtemp(join(tmpdir(),'tangent-qa-'));
@@ -22,17 +22,18 @@ async function geometry(label){
  return{label,viewport:`${r.w}×${r.h}`,board:`${Math.round(board.w)}×${Math.round(board.h)}`,fits:true};
 }
 async function seed(){
- await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('tangent-strike-v1'));s.version=2;s.stars=Array(84).fill(1);s.runs=Array.from({length:7},()=>({next:12,cleared:true,lives:3,seed:0}));s.unlockedWorld=6;s.activeAttempt=null;s.lastLevel=0;s.sound=false;s.reducedMotion=true;localStorage.setItem('tangent-strike-v1',JSON.stringify(s));});await page.reload();
+ await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('tangent-strike-v1'));s.version=2;s.stars=s.stars.map(()=>1);s.runs=s.runs.map(()=>({next:12,cleared:true,lives:3,seed:0}));s.unlockedWorld=s.runs.length-1;s.activeAttempt=null;s.lastLevel=0;s.sound=false;s.reducedMotion=true;localStorage.setItem('tangent-strike-v1',JSON.stringify(s));});await page.reload();
 }
 async function select(id){
  await page.locator(`[data-world="${Math.floor(id/12)}"]`).click();
  if(await page.locator('#levels').isVisible())await page.locator(`button[data-level="${id}"]`).click();
  else{await page.locator('#help').click();await page.locator('#menu-levels').click();await page.locator(`[data-jump="${id}"]`).click();}
+ await page.waitForFunction(id=>document.querySelector('#board').dataset.level===String(id),id);
 }
 async function tapAt(l,a,dir){
  if(l.rule==='choose')await page.locator(`[data-direction="${dir}"]`).click();
- const r=await page.locator('#board').boundingBox(),p=projection(l,r.width,r.height);
- await page.touchscreen.tap(r.x+p.center.x+a*p.scale,r.y+p.center.y-value(l.curve,a)*p.scale);
+ const r=await page.locator('#board').boundingBox(),p=projection(l,r.width,r.height),q=curvePoint(l.curve,a);
+ await page.touchscreen.tap(r.x+p.center.x+q.x*p.scale,r.y+p.center.y-q.y*p.scale);
 }
 async function solve(id){
  const l=makeLevel(id),damage=new Map();
@@ -51,7 +52,7 @@ async function solve(id){
   await page.waitForTimeout(230);
   for(const hit of result.hits){const t=l.targets.find(t=>t.id===hit);damage.set(hit,Math.min(resistance(t),(damage.get(hit)??0)+1));}
  }
- await page.locator('#result:not([hidden])').waitFor({timeout:3000});
+ await page.locator('#result:not([hidden])').waitFor({timeout:3000}).catch(async error=>{await page.screenshot({path:`test-results/failed-level-${id}.png`});throw new Error(`Level ${id}: ${await page.locator('#feedback').innerText()} / ${await page.locator('#shots').getAttribute('aria-label')}`,{cause:error});});
  assert.match(await page.locator('#result h3').innerText(),/Plein centre|Tir précis|Cibles? touchée|Objectif atteint|Dérivée suprême/);
  assert.equal((await read()).runs[l.world].lives,3,`Unexpected collision in level ${id}`);
 }
@@ -76,7 +77,7 @@ try{
  await seed();
  for(const viewport of [{width:320,height:480},{width:320,height:568},{width:360,height:640},{width:375,height:667},{width:390,height:844},{width:430,height:932},{width:568,height:320},{width:844,height:390},{width:768,height:1024},{width:1024,height:768},{width:1440,height:900}]){
   await page.setViewportSize(viewport);
-  for(const id of [0,7,27,43,52,59,68,71,83]){await select(id);report.push(await geometry(`level ${id+1}`));}
+  for(const id of [0,7,27,43,52,53,58,59,68,71,83,84,87,89,92,94,95]){await select(id);report.push(await geometry(`level ${id+1}`));}
   await page.screenshot({path:`test-results/v2-${viewport.width}x${viewport.height}.png`});
  }
  await page.setViewportSize({width:320,height:568});
@@ -88,8 +89,8 @@ try{
  // Laboratory solutions and armor do not mutate campaign stars, lives or frontier.
  const before=await read();await page.locator('#help').click();await page.locator('#menu-practice').click();await page.locator('[data-practice="6"]').click();await page.locator('button[data-level="83"]').click();await page.locator('#hint').click();assert.match(await page.locator('#feedback').innerText(),/a =/);const after=await read();assert.deepEqual(after.stars,before.stars);assert.deepEqual(after.runs.map(r=>r.next),before.runs.map(r=>r.next));
  await page.screenshot({path:'test-results/v2-boss-laboratory.png'});
- await page.locator('#help').click();await page.locator('#menu-achievements').click();assert.equal(await page.locator('[data-achievement]').count(),50);await page.locator('[data-category="Combats"]').click();assert.equal(await page.locator('[data-achievement]').count(),12);await page.screenshot({path:'test-results/v2-achievements.png'});await page.locator('#close-modal').click();
+ await page.locator('#help').click();await page.locator('#menu-achievements').click();assert.equal(await page.locator('[data-achievement]').count(),51);await page.locator('[data-category="Combats"]').click();assert.equal(await page.locator('[data-achievement]').count(),12);await page.screenshot({path:'test-results/v2-achievements.png'});await page.locator('#close-modal').click();
  const cdp=await context.newCDPSession(page);assert.equal((await cdp.send('Page.getAppManifest')).errors.length,0);const install=await cdp.send('Page.getInstallabilityErrors');assert.deepEqual(install.installabilityErrors,[]);
  await context.setOffline(true);await page.reload();await page.locator('#level-title').waitFor();assert.equal((await read()).version,2);const offlineLevel=makeLevel((await read()).lastLevel);await tapAt(offlineLevel,offlineLevel.solution,offlineLevel.solutionDirection);await page.locator('#result:not([hidden])').waitFor();assert.match(await page.locator('#result h3').innerText(),/Plein centre|Tir précis/);await context.setOffline(false);
- assert.deepEqual(errors,[]);const result={layouts:report,played:84,arrow:true,lives:true,armor:true,bosses:true,obstaclePenalty:true,offline:true,installabilityErrors:install.installabilityErrors,errors};await writeFile('test-results/browser-report-v2.json',JSON.stringify(result,null,2));console.log(JSON.stringify({...result,layouts:report.length}));
+ assert.deepEqual(errors,[]);const result={layouts:report,played:TOTAL_LEVELS,arrow:true,lives:true,armor:true,bosses:true,obstaclePenalty:true,offline:true,installabilityErrors:install.installabilityErrors,errors};await writeFile('test-results/browser-report-v2.json',JSON.stringify(result,null,2));console.log(JSON.stringify({...result,layouts:report.length}));
 }finally{await context.close();await rm(profile,{recursive:true,force:true});}

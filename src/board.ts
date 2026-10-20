@@ -1,4 +1,4 @@
-import { BOUNDS, derivative, format, movingObstacle, movingTarget, projection, resistance, value, type Level, type Point, type ShotResult } from './engine.js';
+import { BOUNDS, curvePoint, derivative, format, movingObstacle, movingTarget, parameterRange, projection, resistance, unitTangent, type Level, type Point, type ShotResult } from './engine.js';
 export interface BoardState { level: Level; destroyed: Set<number>; damage: Map<number, number>; time: number; aim: number | null; shot: {result: ShotResult; at: number; impacts: Point[]} | null; hint: number | null; reducedMotion: boolean }
 export const shotDuration = (reducedMotion: boolean) => reducedMotion ? 300 : 1400;
 export class Board {
@@ -34,12 +34,29 @@ export class Board {
   }
   screen(p: Point): Point { return {x: this.center.x + p.x * this.scale, y: this.center.y - p.y * this.scale}; }
   math(p: Point): Point { return {x: (p.x - this.center.x) / this.scale, y: (this.center.y - p.y) / this.scale}; }
-  nearest(clientX: number, clientY: number): {a: number; distance: number} {
+  nearest(clientX: number, clientY: number, previous: number | null = null): {a: number; distance: number} {
     const rect = this.canvas.getBoundingClientRect(), p = {x: clientX - rect.left, y: clientY - rect.top};
     const c = this.getState().level.curve;
+    if (this.getState().level !== this.previousLevel) this.updateProjection();
+    if (c.kind === 'parametric') {
+      const [min, max] = parameterRange(c), step = (max - min) / 720;
+      const distance = (t: number) => {const q = this.screen(curvePoint(c, t));return Math.hypot(q.x - p.x, q.y - p.y);};
+      let a = min, best = Infinity;
+      for (let i = 0; i <= 720; i++) {
+        const t = min + i * step, d = distance(t);
+        const gap = previous === null ? Infinity : Math.abs(t - previous), continuous = Math.min(gap, max - min - gap) < .3;
+        const score = d - (continuous ? 1.5 : 0);
+        if (score < best) {a = t;best = score;}
+      }
+      // Refine the selected branch without jumping at a self-intersection.
+      let left = Math.max(min, a - step), right = Math.min(max, a + step);
+      for (let i = 0; i < 22; i++) {const l = left + (right - left) / 3, r = right - (right - left) / 3;if (distance(l) < distance(r)) right = r;else left = l;}
+      a = (left + right) / 2;
+      return {a, distance: distance(a)};
+    }
     let a = 0, best = Infinity;
     for (let x = BOUNDS.left + .15; x <= BOUNDS.right - .15; x += .025) {
-      const q = this.screen({x, y: value(c, x)}), dist = Math.hypot(q.x - p.x, q.y - p.y);
+      const q = this.screen(curvePoint(c, x)), dist = Math.hypot(q.x - p.x, q.y - p.y);
       if (dist < best) {a = x; best = dist;}
     }
     return {a: Math.round(a * 40) / 40, distance: best};
@@ -79,22 +96,33 @@ export class Board {
     const c = this.ctx, state = this.getState(), level = state.level;
     // Expose the rendered simulation clock for deterministic canvas QA.
     this.canvas.dataset.time = state.time.toFixed(3);
+    this.canvas.dataset.level = String(level.id);
     if (level !== this.previousLevel) {this.previousLevel = level;this.updateProjection();this.drawBackground();}
     const tip = document.getElementById('first-tip');
     if (tip && !tip.hidden) {
-      const p = this.screen({x: level.solution, y: value(level.curve, level.solution)});
+      const p = this.screen(curvePoint(level.curve, level.solution));
       tip.style.left = `${p.x}px`;tip.style.top = `${p.y}px`;
     }
     c.setTransform(1, 0, 0, 1, 0, 0);c.drawImage(this.background, 0, 0);c.scale(this.ratio, this.ratio);
-    c.save();c.beginPath();c.rect(12, this.h < 350 ? 30 : 49, this.w - 24, this.h - (this.h < 350 ? 51 : 79));c.clip();
+    const camera = projection(level, this.w, this.h);
+    c.save();c.beginPath();c.rect(12, camera.top - 1, this.w - 24, this.h - camera.top - camera.bottom + 4);c.clip();
     c.beginPath();
-    for (let x = BOUNDS.left; x <= BOUNDS.right + .02; x += .035) {const p = this.screen({x, y: value(level.curve, x)});if (x === BOUNDS.left) c.moveTo(p.x, p.y);else c.lineTo(p.x, p.y);}
+    const parametric = level.curve.kind === 'parametric', [min, max] = parametric ? parameterRange(level.curve) : [BOUNDS.left, BOUNDS.right];
+    const steps = parametric ? 640 : 315;
+    for (let i = 0; i <= steps; i++) {const p = this.screen(curvePoint(level.curve, min + (max - min) * i / steps));if (!i) c.moveTo(p.x, p.y);else c.lineTo(p.x, p.y);}
     c.lineCap = 'round';c.lineJoin = 'round';
     c.strokeStyle = '#75e8ed10';c.lineWidth = 12;c.stroke();
     c.strokeStyle = '#75e8ed20';c.lineWidth = 6;c.stroke();
     const curveGlow = c.createLinearGradient(0, 0, this.w, this.h);
     curveGlow.addColorStop(0, '#9bb9ff');curveGlow.addColorStop(.45, '#a4fff0');curveGlow.addColorStop(1, '#65ddec');
     c.strokeStyle = curveGlow;c.lineWidth = 2.7;c.stroke();
+    if (parametric) {
+      c.strokeStyle = '#d6d5ffb0';c.lineWidth = 1.3;
+      for (const fraction of [.12, .37, .62, .87]) {
+        const t = min + (max - min) * fraction, p = this.screen(curvePoint(level.curve, t)), v = unitTangent(level.curve, t), u = {x: v.x, y: -v.y};
+        c.beginPath();c.moveTo(p.x - 3 * u.x - 2.6 * u.y, p.y - 3 * u.y + 2.6 * u.x);c.lineTo(p.x + 3.5 * u.x, p.y + 3.5 * u.y);c.lineTo(p.x - 3 * u.x + 2.6 * u.y, p.y - 3 * u.y - 2.6 * u.x);c.stroke();
+      }
+    }
     for (const o of level.obstacles) {
       const p = this.screen(movingObstacle(o, state.time)), r = o.radius * this.scale;
       const fill = c.createRadialGradient(p.x - r * .3, p.y - r * .4, 0, p.x, p.y, r);
@@ -104,7 +132,7 @@ export class Board {
       c.beginPath();c.moveTo(p.x - r * .32, p.y - r * .32);c.lineTo(p.x + r * .32, p.y + r * .32);c.moveTo(p.x + r * .32, p.y - r * .32);c.lineTo(p.x - r * .32, p.y + r * .32);c.stroke();
     }
     if (state.hint !== null) {
-      const p = this.screen({x: state.hint, y: value(level.curve, state.hint)});
+      const p = this.screen(curvePoint(level.curve, state.hint));
       c.strokeStyle = '#d5fb6880';c.lineWidth = 1;c.setLineDash([3, 5]);c.beginPath();c.arc(p.x, p.y, 18, 0, Math.PI * 2);c.stroke();c.setLineDash([]);
     }
     for (const t of level.targets) {
@@ -158,13 +186,13 @@ export class Board {
       c.globalAlpha = 1;
     }
     if (state.aim !== null) {
-      const x = state.aim, p = this.screen({x, y: value(level.curve, x)});
-      c.strokeStyle = '#edf9f077';c.setLineDash([2, 4]);c.lineWidth = 1;c.beginPath();c.moveTo(p.x, this.h - 32);c.lineTo(p.x, p.y);c.stroke();c.setLineDash([]);
+      const x = state.aim, p = this.screen(curvePoint(level.curve, x));
+      if (!parametric) {c.strokeStyle = '#edf9f077';c.setLineDash([2, 4]);c.lineWidth = 1;c.beginPath();c.moveTo(p.x, this.h - 32);c.lineTo(p.x, p.y);c.stroke();c.setLineDash([]);}
       c.fillStyle = '#12212b';c.strokeStyle = '#fff';c.lineWidth = 2;c.beginPath();c.arc(p.x, p.y, 5, 0, Math.PI * 2);c.fill();c.stroke();
       c.fillStyle = '#edf1e9';c.font = '10px ui-monospace,monospace';c.textAlign = 'center';
-      const labelY = p.y < 90 ? p.y + 30 : p.y - 20;c.fillText(`a ≈ ${format(x)}`, Math.max(65, Math.min(this.w - 65, p.x)), labelY);
+      const labelY = p.y < 90 ? p.y + 30 : p.y - 20;c.fillText(`${parametric ? 't' : 'a'} ≈ ${format(x)}`, Math.max(65, Math.min(this.w - 65, p.x)), labelY);
     }
     c.restore();
   }
-  describe(a: number): string { const c = this.getState().level.curve;return `Point d’abscisse ${format(a)}, ordonnée ${format(value(c, a))}. Pente ${format(derivative(c, a))}.`; }
+  describe(a: number): string { const c = this.getState().level.curve, p = curvePoint(c, a), v = unitTangent(c, a);return c.kind === 'parametric' ? `Paramètre t = ${format(a)}, point (${format(p.x)} ; ${format(p.y)}). Sens du parcours : (${format(v.x)} ; ${format(v.y)}).` : `Point d’abscisse ${format(a)}, ordonnée ${format(p.y)}. Pente ${format(derivative(c, a))}.`; }
 }
