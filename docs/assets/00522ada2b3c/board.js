@@ -217,15 +217,28 @@ export class Board {
         c.lineWidth = 2.7;
         c.stroke();
         if (parametric) {
-            c.strokeStyle = '#d6d5ffb0';
-            c.lineWidth = 1.3;
+            // A solid arrow with a dark outline stays legible over the luminous curve.
+            const size = this.w < 420 || this.h < 210 ? 8 : 11;
             for (const fraction of [.12, .37, .62, .87]) {
-                const t = min + (max - min) * fraction, p = this.screen(curvePoint(level.curve, t)), v = unitTangent(level.curve, t), u = { x: v.x, y: -v.y };
+                const t = min + (max - min) * fraction, p = this.screen(curvePoint(level.curve, t)), v = unitTangent(level.curve, t);
+                c.save();
+                c.translate(p.x, p.y);
+                c.rotate(Math.atan2(-v.y, v.x));
                 c.beginPath();
-                c.moveTo(p.x - 3 * u.x - 2.6 * u.y, p.y - 3 * u.y + 2.6 * u.x);
-                c.lineTo(p.x + 3.5 * u.x, p.y + 3.5 * u.y);
-                c.lineTo(p.x - 3 * u.x + 2.6 * u.y, p.y - 3 * u.y - 2.6 * u.x);
+                c.moveTo(size * .9, 0);
+                c.lineTo(-size * .15, -size * .55);
+                c.lineTo(-size * .15, -size * .19);
+                c.lineTo(-size * .85, -size * .19);
+                c.lineTo(-size * .85, size * .19);
+                c.lineTo(-size * .15, size * .19);
+                c.lineTo(-size * .15, size * .55);
+                c.closePath();
+                c.strokeStyle = '#0b1429';
+                c.lineWidth = 3;
                 c.stroke();
+                c.fillStyle = '#f0d4ff';
+                c.fill();
+                c.restore();
             }
         }
         for (const o of level.obstacles) {
